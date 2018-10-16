@@ -1,0 +1,607 @@
+\section{Network definition}
+
+Now let us consider a network with batch normalization.
+\begin{equation}
+\left\{ \begin{aligned}
+\obj{y}_{i} & = \obj{W}_{i} \obj{x}_{i - 1} && i = 1, \dots, L \\
+\obj{q}_{i} & = \bnorm(\obj{y}_{i}) && i = 1, \dots, L - 1 \\
+\obj{z}_{i} & = \obj{\gamma}_{i} \odot \obj{q}_{i} + \obj{b}_{i} && i = 1, \dots, L - 1 \\
+\obj{x}_{i} & = \sigma(\obj{z}_{i}) && i = 1, \dots, L - 1
+\end{aligned} \right.
+\end{equation}
+Since batch-normalization results in a distribution with zero mean and unit variance, we can see that
+\begin{align}
+\E[z_{i}] & = \E[b_{i}] \\
+\V[z_{i}] & = \gamma_{i}^2 + \V[b_{i}]
+\end{align}
+Let us again assume that $\obj{b}_{i} = 0$.
+This results in the distributions:
+\begin{align}
+\V[y_{i}] & = m_{i - 1} \V[W_{i}] \E[x_{i - 1}^2] \\ % && i = 1, \dots, L \\
+\V[z_{i}] & = \gamma_{i}^2 \\ % && i = 1, \dots, L - 1 \\
+\E[x_{i}^2] & = \tfrac{1}{2} \V[z_{i}] % && i = 1, \dots, L - 1
+\end{align}
+and therefore:
+\begin{align}
+\E[x_{i}^2] & = \tfrac{1}{2} \gamma_{i}^2 \\ % && i = 1, \dots, L-1 \\
+\V[y_{i}] & = \tfrac{1}{2} m_{i - 1} \gamma_{i}^2 \V[W_{i}] % && i = 1, \dots, L
+\end{align}
+This removes the recursion completely, promising to greatly simplify the choice of initialization.
+However, what happens to the gradients?
+
+%\section{Gradients}
+%
+%To examine batch-norm, we need to consider a batch of examples.
+%\begin{align}
+%\obj{Y}_{i} & = \obj{W}_{i} \obj{X}_{i - 1} && i = 1, \dots, L \\
+%\obj{Q}_{i} & = \bnorm(\obj{Y}_{i}) && i = 1, \dots, L - 1 \\
+%\obj{Z}_{i} & = \diag(\obj{\gamma}_{i}) \obj{Q}_{i} + \obj{b}_{i} 1^{T} && i = 1, \dots, L - 1 \\
+%\obj{X}_{i} & = \sigma(\obj{Z}_{i}) && i = 1, \dots, L - 1
+%\end{align}
+%Let us introduce several auxiliary variables to define the batch-norm operation
+%\begin{align}
+%\obj{Q}_{i} & = \diag(\obj{\omega}_{i}) (\obj{Y}_{i} - \obj{\mu}_{i} 1^{T}) \\
+%\obj{\mu}_{i} & = \tfrac{1}{B} \obj{Y}_{i} 1 \\
+%\obj{\omega}_{i} & = 1 / (\sqrt{\obj{s}_{i}} + \epsilon) \\
+%\obj{s}_{i} & = \tfrac{1}{B} (\obj{Y}_{i}^2) 1 - \obj{\mu}_{i}^2 \\
+%%\obj{Z}_{i} & = \diag(\obj{\gamma}_{i}) \obj{Q}_{i} + \obj{b}_{i} 1^T
+%\end{align}
+%Then we obtain derivatives
+%\begin{align}
+%\gradobj{Y}_{i} & = \diag(\obj{\omega}_{i}) \gradobj{Q}_{i} \\
+%\gradobj{\mu}_{i} & = -\diag(\obj{\omega}_{i}) \gradobj{Q}_{i} 1 \\
+%\gradobj{\omega}_{i} & = [\gradobj{Q}_{i} \odot (\obj{Y}_{i} - \obj{\mu}_{i} 1^T)] 1 \\
+%\gradobj{s}_{i} & = -\tfrac{1}{2} \gradobj{\omega}_{i} \odot \obj{\omega}_{i}^{2} \odot \obj{s}_{i}^{-\frac{1}{2}} \\
+%\gradobj{\gamma}_{i} & =  \\
+%\gradobj{Q}_{i} & =  \\
+%\gradobj{b}_{i} & = \gradobj{Z}_{i} 1 \\
+%\intertext{as well as the usual gradients}
+%\gradobj{Z}_{i} & = \gradobj{X}_{i} \odot \nabla\sigma(\obj{Z}_{i}) \\
+%\gradobj{W}_{i} & = \gradobj{Y}_{i} \obj{X}_{i-1}^T \\
+%\gradobj{X}_{i} & = \obj{W}_{i+1}^T \gradobj{Y}_{i+1}
+%\end{align}
+
+
+\section{Desiderata}
+
+It's not clear which gradients are of interest.
+Probably the parameters $\V[\grad{W}_{i}]$,  $\V[\grad{\gamma}_{i}]$,  $\V[\grad{b}_{i}]$.
+Note that $\gradobj{b}_{i} \ne \gradobj{y}_{i}$ so this no longer provides motivation to examine $\V[\grad{y}_{i}]$.
+However, it still seems reasonable to assert that a healthy network has gradients of similar magnitudes at all layers, at least at initialization.
+If we want to consider relative changes in each parameter, we might consider $\V[\grad{W}_{i}] / \V[W_{i}]$,  $\V[\grad{\gamma}_{i}] / \V[\gamma_{i}]$ and either $\V[\grad{b}_{i}] / \V[z_{i}] = \V[\grad{z}_{i}] / \V[z_{i}]$ or $\V[\grad{b}_{i}] / \V[q_{i}]$.
+
+
+\section{Batch-norm gradients}
+
+Let us consider just the batch-norm function $\obj{Q} = \bnorm(\obj{Y})$.
+We introduce auxiliary variables to facilitate the derivation:
+\begin{align}
+\obj{c} & = \tfrac{1}{B} \obj{Y} 1 \\
+\obj{U} & = \obj{Y} - \obj{c} 1^{T} \\
+\obj{V} & = \obj{U}^{2} \\
+\obj{s} & = \tfrac{1}{B} \obj{V} 1 \\
+\obj{r} & = \sqrt{\obj{s}} \\
+\obj{a} & = (\obj{r} + \epsilon)^{-1} \\
+\obj{Q} & = \diag(\obj{a}) \obj{U}
+\end{align}
+and take differentials of these equations:
+\begin{align}
+\obj{dc} & = \tfrac{1}{B} \obj{dY} 1 \\
+\obj{dU} & = \obj{dY} - \obj{dc} 1^{T} \\
+\obj{dV} & = 2 \obj{U} \odot \obj{dU} \\
+\obj{ds} & = \tfrac{1}{B} \obj{dV} 1 \\
+\obj{dr} & = \tfrac{1}{2} \obj{s}^{-1/2} \odot \obj{ds} = \tfrac{1}{2} \obj{r}^{-1} \odot \obj{ds} \\
+\obj{da} & = (-1) (\obj{r} + \epsilon)^{-2} \odot \obj{dr} = -\obj{a}^{2} \odot \obj{dr} \\
+\obj{dQ} & = \diag(\obj{da}) \obj{U} + \diag(\obj{a}) \obj{dU}
+\end{align}
+Next we will obtain the transposes of these linear maps.
+However, first it is useful to note several identities
+\begin{equation}
+\langle y, A x \rangle = y^{T} A x = \trace(x y^{T} A) = \langle y x^{T} , A \rangle
+\end{equation}
+\begin{align}
+\langle A, B C \rangle & = \trace(A^T B C) = \langle B^{T} A, C \rangle \\
+\langle A, B C \rangle & = \trace(A^T B C) = \trace(C A^T B) = \langle A C^{T}, B \rangle
+\end{align}
+\begin{align}
+\langle A, \diag(v) B \rangle
+= \langle A B^{T}, \diag(v) \rangle
+& = \sum_{i} v_{i} (A B^{T})_{i i} \\
+& = \sum_{i} v_{i} \sum_{j} A_{i j} B_{i j}
+= \langle v, (A \odot B)1 \rangle
+\end{align}
+Now we can obtain the transposes:
+\begin{align}
+\langle \gradobj{c} , \obj{dc} \rangle
+& = \langle \gradobj{c} , \tfrac{1}{B} \obj{dY} 1 \rangle \\
+& = \langle \tfrac{1}{B} \gradobj{c} 1^{T} , \obj{dY} \rangle \\
+\langle \gradobj{U}, \obj{dU} \rangle
+& = \langle \gradobj{U}, \obj{dY} - \obj{dc} 1^{T} \rangle = \langle \gradobj{U}, \obj{dY} \rangle - \langle \gradobj{U}, \obj{dc} 1^{T} \rangle \\
+& = \langle \gradobj{U}, \obj{dY} \rangle - \langle \gradobj{U} 1, \obj{dc} \rangle \\
+\langle \gradobj{V}, \obj{dV} \rangle
+& = \langle \gradobj{V}, 2 \obj{U} \odot \obj{dU} \rangle \\
+& = \langle 2 \gradobj{V} \odot \obj{U}, \obj{dU} \rangle \\
+\langle \gradobj{s}, \obj{ds} \rangle
+& = \langle \gradobj{s}, \tfrac{1}{B} \obj{dV} 1 \rangle \\
+& = \langle \tfrac{1}{B} \gradobj{s} 1^{T}, \obj{dV} \rangle \\
+\langle \gradobj{r}, \obj{dr} \rangle
+& = \langle \gradobj{r}, \tfrac{1}{2} \obj{r}^{-1} \odot \obj{ds} \rangle \\
+& = \langle \tfrac{1}{2} \gradobj{r} \odot \obj{r}^{-1}, \obj{ds} \rangle \\
+\langle \gradobj{a}, \obj{da} \rangle
+& = \langle \gradobj{a}, - \obj{a}^{2} \odot \obj{dr} \rangle \\
+& = \langle - \gradobj{a} \odot \obj{a}^{2}, \obj{dr} \rangle \\
+\left\langle \gradobj{Q}, \obj{dQ} \right\rangle
+& = \langle \gradobj{Q}, \diag(\obj{da}) \obj{U} + \diag(\obj{a}) \obj{dU} \rangle \\
+& = \langle \gradobj{Q}, \diag(\obj{da}) \obj{U} \rangle + \langle \gradobj{Q}, \diag(\obj{a}) \obj{dU} \rangle \\
+& = \langle (\gradobj{Q} \odot \obj{U}) 1, \obj{da} \rangle + \langle \diag(\obj{a}) \gradobj{Q}, \obj{dU} \rangle
+\end{align}
+
+Now we can combine these inner products to obtain $\gradobj{Y}$.
+First, let's consider
+\begin{align}
+\langle \gradobj{a}, \obj{da} \rangle
+& = \langle -\gradobj{a} \odot \obj{a}^{2}, \obj{dr} \rangle \\
+& = \langle -\tfrac{1}{2} \gradobj{a} \odot \obj{a}^{2} \odot \obj{r}^{-1}, \obj{ds} \rangle \\
+& = \left\langle -\tfrac{1}{2} \tfrac{1}{B} (\gradobj{a} \odot \obj{a}^{2} \odot \obj{r}^{-1}) 1^{T}, \obj{dV} \right\rangle \\
+& = \left\langle -\tfrac{1}{B} [(\gradobj{a} \odot \obj{a}^{2} \odot \obj{r}^{-1}) 1^{T}] \odot \obj{U}, \obj{dU} \right\rangle \\
+& = \left\langle -\tfrac{1}{B} \diag(\gradobj{a} \odot \obj{a}^{2} \odot \obj{r}^{-1}) \obj{U}, \obj{dU} \right\rangle \\
+& = \left\langle -\tfrac{1}{B} \diag(\gradobj{a} \odot \obj{a} \odot \obj{r}^{-1}) \obj{Q}, \obj{dU} \right\rangle
+\end{align}
+where we used the identity
+\begin{equation}
+(x 1^{T}) \odot A = [\diag(x) 1 1^{T}] \odot A = \diag(x) A
+\end{equation}
+Following from this, we have
+\begin{align}
+\left\langle \gradobj{Q}, \obj{dQ} \right\rangle
+& = \langle (\gradobj{Q} \odot \obj{U}) 1, \obj{da} \rangle + \langle \diag(\obj{a}) \gradobj{Q}, \obj{dU} \rangle \\
+& = \left\langle -\diag\big( \tfrac{1}{B} [(\gradobj{Q} \odot \obj{U}) 1] \odot \obj{a} \odot \obj{r}^{-1} \big) \obj{Q}, \obj{dU} \right\rangle
+  + \langle \diag(\obj{a}) \gradobj{Q}, \obj{dU} \rangle \\
+%& = \left\langle -\diag(\tfrac{1}{B} (\gradobj{Q} \odot \obj{U}) 1) \diag(\obj{a} \odot \obj{r}^{-1}) \obj{Q}, \obj{dU} \right\rangle
+%  + \langle \diag(\obj{a}) \gradobj{Q}, \obj{dU} \rangle \\
+& = \left\langle -\diag\big( \obj{r}^{-1} \odot [\tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1] \big) \obj{Q} + \diag(\obj{a}) \gradobj{Q}, \obj{dU} \right\rangle
+\end{align}
+since
+\begin{equation}
+\obj{a} \odot \tfrac{1}{B} [(\gradobj{Q} \odot \obj{U}) 1]
+= \tfrac{1}{B} \diag(\obj{a}) (\gradobj{Q} \odot \obj{U}) 1
+= \tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1
+\end{equation}
+using the identity
+\begin{equation}
+\diag(x) (A \odot B) = (\diag(x) A) \odot B
+\end{equation}
+Now we can consider
+\begin{align}
+\langle \gradobj{U}, \obj{dU} \rangle
+& = \langle \gradobj{U}, \obj{dY} \rangle - \langle \gradobj{U} 1, \obj{dc} \rangle \\
+& = \langle \gradobj{U}, \obj{dY} \rangle - \langle \tfrac{1}{B} \gradobj{U} 1 1^{T} , \obj{dY} \rangle \\
+& = \left\langle \gradobj{U} - \tfrac{1}{B} \gradobj{U} 1 1^{T} , \obj{dY} \right\rangle \\
+& = \left\langle \gradobj{U} (\obj{I} - \tfrac{1}{B} 1 1^{T}) , \obj{dY} \right\rangle
+\end{align}
+to obtain
+\begin{align}
+\left\langle \gradobj{Q}, \obj{dQ} \right\rangle
+& = \left\langle -\diag\big( \obj{r}^{-1} \odot [\tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1] \big) \obj{Q} + \diag(\obj{a}) \gradobj{Q}, \obj{dU} \right\rangle \\
+& = \left\langle \left\{ -\diag\big( \obj{r}^{-1} \odot [\tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1] \big) \obj{Q} + \diag(\obj{a}) \gradobj{Q} \right\} (\obj{I} - \tfrac{1}{B} 1 1^{T}) , \obj{dY} \right\rangle
+\end{align}
+Finally, we have
+\begin{align}
+\gradobj{Y} & = \left\{ -\diag\big( \obj{r}^{-1} \odot [\tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1] \big) \obj{Q} + \diag(\obj{a}) \gradobj{Q} \right\} (\obj{I} - \tfrac{1}{B} 1 1^{T}) \\
+& \approx \diag(\obj{a}) \left\{ \gradobj{Q} - \diag\big[ \tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1 \big] \obj{Q} \right\} (\obj{I} - \tfrac{1}{B} 1 1^{T})
+\end{align}
+since $\obj{a} \approx \obj{r}^{-1}$.
+Note that if this is decomposed
+\begin{align}
+\gradobj{Y} & = \gradobj{U} (\obj{I} - \tfrac{1}{B} 1 1^{T}) \\
+\gradobj{U} & = \diag(\obj{a}) \left\{ \gradobj{Q} - \diag\big[ \tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1 \big] \obj{Q} \right\}
+\end{align}
+then we should compute $\frac{1}{B} (\gradobj{U} 1) 1^{T}$ instead of explicitly multiplying $\frac{1}{B} \gradobj{U} (1 1^{T})$.
+
+%Is there any point considering this all together:
+%\begin{align}
+%\diag\big[ \tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1 \big] \obj{Q} (\obj{I} - \tfrac{1}{B} 1 1^{T})
+%& = \diag\big[ \tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1 \big] \left( \obj{Q} - \tfrac{1}{B} \obj{Q} 1 1^{T} \right) \\
+%\diag\big[ \tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1 \big] \left( \tfrac{1}{B} \obj{Q} 1 1^{T} \right)
+%& = \left( \tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1 \odot \tfrac{1}{B} \obj{Q} 1 \right) 1^{T}
+%\end{align}
+
+\section{Batch-norm analysis}
+
+How can we interpret this gradient?
+Clearly $\gradobj{Y}$ is simply $\gradobj{U}$ with the mean removed across the batch.
+Hence $\E[\grad{y}] = 0$ (with large enough batches).
+
+The equation for $\gradobj{U}$ can be expressed per column
+\begin{align}
+\gradobj{u}_{t} & = \obj{a} \odot \left\{ \gradobj{q}_{t} - [\tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1] \odot \obj{q}_{t} \right\}
+\end{align}
+
+Let us assume that $\E[s] = \V[y]$ and $\V[s] = 0$.
+
+
+Consider
+\begin{align}
+\gradobj{q}_{t} - [\tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1] \odot \obj{q}_{t}
+\end{align}
+The term $\tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1$ is the mean of the product $\gradobj{q}_{t} \odot \obj{q}_{t}$ over the elements of the batch.
+We know that $\E[q] = 0$ and $\V[q] = 1$.
+Let
+\begin{equation}
+\obj{h} = \tfrac{1}{B} (\gradobj{Q} \odot \obj{Q}) 1 = \frac{1}{B} \sum_{t = 1}^{B} \gradobj{q}_{t} \odot \obj{q}_{t}
+\end{equation}
+and observe
+\begin{align}
+\E[h] & = \E[\grad{q} \cdot q] \\
+& = \E[\grad{q}] \E[q] && \text{using independence} \\
+& = 0 && \text{since $\E[q] = 0$}
+\end{align}
+\begin{align}
+\V[h] & = \tfrac{1}{B} \V[\grad{q} \cdot q] \\
+& = \tfrac{1}{B} \left( \E[\grad{q}^2] \E[q^2] - \E[\grad{q}]^2 \E[q]^2 \right) && \text{using independence} \\
+& = \tfrac{1}{B} \V[\grad{q}] \V[q] && \text{using $\E[\grad{q}] = \E[q] = 0$} \\
+& = \tfrac{1}{B} \V[\grad{q}] && \text{using $\V[q] = 1$} \\
+& = 0 && \text{for large $B$}
+\end{align}
+Therefore
+\begin{equation}
+\obj{f}_{t} = \gradobj{q}_{t} - \obj{h} \odot \obj{q}_{t}
+\end{equation}
+however $\obj{h}$ is not independent of the other variables.
+Let's assume it is.
+Then
+\begin{align}
+\E[f] = \E[\grad{q}] - \E[h q] = \E[\grad{q}] - \E[h] \E[q] = \E[\grad{q}] = 0
+\end{align}
+\begin{align}
+\V[f] = \V[\grad{q}] + \V[h q] & = \V[\grad{q}] + \E[h^2] \E[q^2] - \E[h]^2 \E[q]^2 = \V[\grad{q}]
+\end{align}
+Next we consider $\obj{u}_{t} = \obj{r}^{-1} \odot \obj{f}_{t}$.
+\begin{align}
+\E[\grad{u}] = \E[a f] = \E[a] \E[f] = 0
+\end{align}
+\begin{align}
+\V[\grad{u}] = \V[a f] = \E[a^2] \E[f^2] - \E[a]^2 \E[f]^2 = \E[a^2] \V[f] = \V[\grad{q}] / \V[y]
+\end{align}
+since $\E[a] = 1/\sqrt{\V[y]}$ and $\V[a] = 0$.
+Note that this combines the gradients with respect to the normalized pre-activations $\obj{q}$ and the variance of the un-normalized pre-activations $\obj{y}$.
+Finally, subtracting the mean will not affect the variance, hence:
+\begin{align}
+\gradobj{y}_{t} & = \gradobj{u}_{t} - \tfrac{1}{B} \gradobj{U} 1
+= \gradobj{u}_{t} - \textstyle \frac{1}{B} \sum_{\tau} \gradobj{u}_{\tau} \\
+\V[\bar{y}] & = \V[\bar{u}] = \V[\grad{q}] / \V[y]
+\end{align}
+
+%Consider
+%\begin{align}
+%\obj{f}_{t} & = \gradobj{q}_{t} - \left[ \frac{1}{B} \sum_{\tau = 1}^{B} \gradobj{q}_{\tau} \odot \obj{q}_{\tau} \right] \odot \obj{q}_{t} \\
+%& = \gradobj{q}_{t} - \frac{1}{B} \left[ \gradobj{q}_{t} \odot \obj{q}_{t}^2 + \sum_{\tau \ne t}^{B} \gradobj{q}_{\tau} \odot \obj{q}_{\tau} \odot \obj{q}_{t} \right] \\
+%& = \gradobj{q}_{t} - \frac{1}{B} \gradobj{q}_{t} \odot \obj{q}_{t}^2 \right)
+%  - \frac{1}{B} \obj{q}_{t} \odot \left[ \sum_{\tau \ne t}^{B} \gradobj{q}_{\tau} \odot \obj{q}_{\tau} \right] \\
+%\end{align}
+
+%and therefore
+%\begin{align}
+%\gradobj{Q} & = \left( -\diag\big\{ \tfrac{1}{B} [(\gradobj{Q} \odot \obj{U}) 1] \odot \obj{a}^2 \odot \obj{r}^{-1} \big\} \obj{U} + \diag(\obj{a}) \gradobj{Q} \right) (\obj{I} - \tfrac{1}{B} 1 1^{T}) \\
+%& = \left( -\diag(\obj{a}^2 \odot \obj{r}^{-1}) \diag\left\{\tfrac{1}{B} (\gradobj{Q} \odot \obj{Y}) 1 - \obj{c} \odot (\tfrac{1}{B} \gradobj{Q} 1)\big] \right\} \obj{U} + \diag(\obj{a}) \gradobj{Q} \right) (\obj{I} - \tfrac{1}{B} 1 1^{T}) \\
+%& = \left( -\diag\big\{ \obj{a}^2 \odot \obj{r}^{-1} \odot [\tfrac{1}{B} (\gradobj{Q} \odot \obj{Y}) 1] - \tfrac{1}{B} \diag(\obj{c}) \gradobj{Q} 1] \big\} \obj{U} + \diag(\obj{a}) \gradobj{Q} \right) (\obj{I} - \tfrac{1}{B} 1 1^{T}) \\
+%\end{align}
+%by noting that
+%\begin{align}
+%(\gradobj{Q} \odot \obj{U}) 1
+%& = (\gradobj{Q} \odot (\obj{Y} - \obj{c} 1^{T})) 1 \\
+%& = (\gradobj{Q} \odot \obj{Y} - \gradobj{Q} \odot (\obj{c} 1^{T})) 1 \\
+%& = (\gradobj{Q} \odot \obj{Y} - \diag(\obj{c}) \gradobj{Q}) 1 \\
+%& = (\gradobj{Q} \odot \obj{Y}) 1 - \diag(\obj{c}) \gradobj{Q} 1
+%\end{align}
+
+%Note that
+%\begin{align}
+%(x 1^{T}) \odot A & = (\diag(x) 1 1^{T}) \odot A = \diag(x) A \\
+%(1 y^{T}) \odot A & = A \odot (1 1^{T} \diag(y)) = A \diag(y)
+%\end{align}
+
+
+\section{Gradients}
+
+We should also obtain the derivatives for the other variables in the batch-norm network.
+\begin{align}
+\obj{y}_{i} & = \obj{W}_{i} \obj{x}_{i - 1} && i = 1, \dots, L \\
+%\obj{q}_{i} & = \bnorm(\obj{y}_{i}) && i = 1, \dots, L - 1 \\
+\obj{z}_{i} & = \obj{\gamma}_{i} \odot \obj{q}_{i} + \obj{b}_{i} && i = 1, \dots, L - 1 \\
+\obj{x}_{i} & = \sigma(\obj{z}_{i}) && i = 1, \dots, L - 1
+\end{align}
+Taking differentials
+\begin{align}
+\obj{dy}_{i} & = \obj{dW}_{i} \obj{x}_{i - 1} + \obj{W}_{i} \obj{dx}_{i - 1} \\
+\obj{dz}_{i} & = \obj{d\gamma}_{i} \odot \obj{q}_{i} + \obj{\gamma}_{i} \odot \obj{dq}_{i} + \obj{db}_{i} \\
+\obj{dx}_{i} & = \nabla\sigma(\obj{z}_{i}) \odot \obj{dz}_{i}
+\end{align}
+Now re-arranging the inner products:
+\begin{align}
+\langle \gradobj{y}_{i}, \obj{dy}_{i}\rangle
+& = \langle \gradobj{y}_{i}, \obj{dW}_{i} \obj{x}_{i - 1} \rangle + \langle \gradobj{y}_{i}, \obj{W}_{i} \obj{dx}_{i - 1} \rangle \\
+& = \langle \gradobj{y}_{i} \obj{x}_{i - 1}^T, \obj{dW}_{i} \rangle + \langle \obj{W}_{i}^{T} \gradobj{y}_{i}, \obj{dx}_{i - 1} \rangle \\
+\langle \gradobj{z}_{i}, \obj{dz}_{i} \rangle
+& = \langle \gradobj{z}_{i}, \obj{d\gamma}_{i} \odot \obj{q}_{i} \rangle + \langle \gradobj{z}_{i}, \obj{\gamma}_{i} \odot \obj{dq}_{i} \rangle + \langle \gradobj{z}_{i}, \obj{db}_{i} \rangle \\
+& = \langle \gradobj{z}_{i} \odot \obj{q}_{i}, \obj{d\gamma}_{i} \rangle + \langle \obj{\gamma}_{i} \odot \gradobj{z}_{i}, \obj{dq}_{i} \rangle + \langle \gradobj{z}_{i}, \obj{db}_{i} \rangle \\
+\langle \gradobj{x}_{i}, \obj{dx}_{i} \rangle
+& = \langle \gradobj{x}_{i}, \nabla\sigma(\obj{z}_{i}) \odot \obj{dz}_{i} \rangle \\
+& = \langle \nabla\sigma(\obj{z}_{i}) \odot \gradobj{x}_{i}, \obj{dz}_{i} \rangle
+\end{align}
+
+Since each variable appears only once, we can easily extract the derivatives
+\begin{align}
+\gradobj{W}_{i} & = \gradobj{y}_{i} \obj{x}_{i - 1}^T \\
+%\gradobj{x}_{i - 1} & = \obj{W}_{i}^{T} \gradobj{y}_{i} \\
+\gradobj{x}_{i} & = \obj{W}_{i+1}^{T} \gradobj{y}_{i+1} \\
+\gradobj{\gamma}_{i} & = \gradobj{z}_{i} \odot \obj{q}_{i} \\
+\gradobj{q}_{i} & = \obj{\gamma}_{i} \odot \gradobj{z}_{i} \\
+\gradobj{b}_{i} & = \gradobj{z}_{i} \\
+\gradobj{z}_{i} & = \nabla\sigma(\obj{z}_{i}) \odot \gradobj{x}_{i}
+\end{align}
+
+\section{Analysis}
+
+Activations:
+
+\begin{align}
+\E[y_{i}] = m_{i-1} \E[W_{i} x_{i-1}] = m_{i-1} \E[W_{i}] \E[x_{i-1}] = 0
+\end{align}
+\begin{align}
+\V[y_{i}] & = m_{i-1} \V[W_{i} x_{i-1}] \\
+  & = m_{i-1} \left( \E[W_{i}^2] \E[x_{i-1}^2] - \E[W_{i}]^2 \E[x_{i-1}]^2 \right) \\
+  & = m_{i-1} \V[W_{i}] \E[x_{i-1}^2]
+\end{align}
+
+\begin{align}
+\E[z_{i}] = \E[\gamma_{i} q_{i}] + \E[b_{i} = \E[\gamma_{i}] \E[q_{i}] = 0
+\end{align}
+(since $\E[q_{i}] = 0$)
+\begin{align}
+\V[z_{i}] & = \V[\gamma_{i} q_{i}] + \V[b_{i} = \E[\gamma_{i}^2] \E[q_{i}^2] - \E[\gamma_{i}]^2 \E[q_{i}]^2 = \E[\gamma_{i}^2]
+\end{align}
+(since $\E[q_{i}] = 0$ and $\V[q_{i}] = 1$)
+
+\begin{align}
+\E[x_{i}] = \tfrac{1}{2} \E[z_{i}]
+\end{align}
+\begin{align}
+\E[x_{i}^2] = \tfrac{1}{2} \E[z_{i}^2]
+\end{align}
+(assume that $z_{i}$ is symmetric about zero)
+
+Combining these equations:
+\begin{align}
+\E[x_{i}^2] & = \tfrac{1}{2} \E[z_{i}^2] = \tfrac{1}{2} \V[z_{i}] = \tfrac{1}{2} \E[\gamma_{i}^2] \\
+\V[y_{i}] & = \tfrac{1}{2} m_{i-1} \V[W_{i}] \E[\gamma_{i-1}^2] && i = 2, \dots, L
+\end{align}
+
+Gradients for activations:
+\begin{align}
+\E[\grad{y}_{i}]
+& = 0 \\
+\E[\grad{x}_{i}]
+& = m_{i+1} \E[W_{i+1} \grad{y}_{i+1}] \\
+& = m_{i+1} \E[W_{i+1}] \E[\grad{y}_{i+1}] = 0 \\
+\E[\grad{z}_{i}]
+& = \E[\nabla\sigma(z_{i}) \grad{x}_{i}] \\
+& = \E[\nabla\sigma(z_{i})] \E[\grad{x}_{i}] = \tfrac{1}{2} \E[\grad{x}_{i}] = 0 \\
+\E[\grad{q}_{i}]
+& = \E[\gamma_{i} \grad{z}_{i}] \\
+& = \E[\gamma_{i}] \E[\grad{z}_{i}] = 0
+\end{align}
+\begin{align}
+\V[\grad{z}_{i}]
+& = \V[\nabla\sigma(z_{i}) \grad{x}_{i}] \\
+& = \E[\nabla\sigma(z_{i})^2] \E[\grad{x}_{i}^2] - \E[\nabla\sigma(z_{i})]^2 \E[\grad{x}_{i}]^2 \\
+& = \tfrac{1}{2} \V[\grad{x}_{i}] \\
+\intertext{(assuming that $z_{i}$ is symmetrically distributed around zero)}
+\V[\grad{q}_{i}] & = \V[\gamma_{i} \grad{z}_{i}] \\
+& = \E[\gamma_{i}^2] \E[\grad{z}_{i}^2] - \E[\gamma_{i}]^2 \E[\grad{z}_{i}]^2 \\
+& = \E[\gamma_{i}^2] \V[\grad{z}_{i}] \\
+\V[\grad{y}_{i}] & = \V[\grad{q}_{i}] / \V[y_{i}] \\
+\V[\grad{x}_{i}] & = m_{i+1} \V[W_{i+1} \grad{y}_{i+1}] \\
+& = m_{i+1} \left( \E[W_{i+1}^2] \E[\grad{y}_{i+1}^2] - \E[W_{i+1}]^2 \E[\grad{y}_{i+1}]^2 \right) \\
+& = m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}]
+\end{align}
+Combining these:
+\begin{align}
+\V[\grad{q}_{i}] & = \E[\gamma_{i}^2] \V[\grad{z}_{i}] \\
+& = \tfrac{1}{2} \E[\gamma_{i}^2] \V[\grad{x}_{i}] \\
+& = \tfrac{1}{2} m_{i+1} \E[\gamma_{i}^2] \V[W_{i+1}] \V[\grad{y}_{i+1}] \\
+\V[\grad{y}_{i}] & = \frac{\V[\grad{q}_{i}]}{\V[y_{i}]} \\
+& = \frac{
+  \tfrac{1}{2} m_{i+1} \E[\gamma_{i}^2] \V[W_{i+1}] \V[\grad{y}_{i+1}] }{
+  \tfrac{1}{2} m_{i-1} \V[W_{i}] \E[\gamma_{i-1}^2] } \\
+& = \frac{m_{i+1}}{m_{i-1}} \frac{\E[\gamma_{i}^2]}{\E[\gamma_{i-1}^2]} \frac{\V[W_{i+1}]}{\V[W_{i}]} \V[\grad{y}_{i+1}]
+\end{align}
+
+Gradients for parameters:
+\begin{align}
+\E[\grad{b}_{i}] & = \E[\grad{z}_{i}] = 0 \\
+\E[\grad{\gamma}_{i}] & = \E[\grad{z}_{i} q_{i}] = \E[\grad{z}_{i}] \E[q_{i}] = 0 \\
+\E[\grad{W}_{i}] & = \E[\grad{y}_{i} x_{i-1}] = \E[\grad{y}_{i}] \E[x_{i-1}] = 0
+\end{align}
+\begin{align}
+\V[\grad{b}_{i}] & = \V[\grad{z}_{i}] \\
+\V[\grad{\gamma}_{i}] & = \V[\grad{z}_{i} q_{i}] \\
+& = \E[\grad{z}_{i}^2] \E[q_{i}^2] - \E[\grad{z}_{i}]^2 \E[q_{i}]^2 \\
+& = \V[\grad{z}_{i}] \V[q_{i}] \\
+\V[\grad{W}_{i}] & = \V[\grad{y}_{i} x_{i-1}] \\
+& = \E[\grad{y}_{i}^2] \E[x_{i-1}^2] - \E[\grad{y}_{i}]^2 \E[x_{i-1}]^2 \\
+& = \V[\grad{y}_{i}] \E[x_{i-1}^2]
+\end{align}
+
+\section{Achieving desiderata}
+
+\subsection{Activations}
+
+To achieve equal-magnitude gradients $\V[\grad{y}_{i}]$:
+\begin{align}
+\frac{ m_{i+1} }{ m_{i-1} } \frac{ \E[\gamma_{i}^2] }{ \E[\gamma_{i-1}^2] } \frac{ \V[W_{i+1}] }{ \V[W_{i}] } & = 1 \\
+\frac{ \E[\gamma_{i}^2] \V[W_{i+1}] }{ \E[\gamma_{i-1}^2] \V[W_{i}] } & = \frac{ m_{i-1} }{ m_{i+1} }
+\end{align}
+Let us introduce $\beta_{i}^2 = \gamma_{i-1}^2 \V[W_{i}]$ for $i = 2, \dots, L$.
+Then the above is expressed
+\begin{align}
+\frac{\beta_{i+1}^2}{\beta_{i}^2} & = \frac{ m_{i-1} }{ m_{i+1} }
+\end{align}
+
+Instead consider the relative gradient
+\begin{align}
+\frac{ \V[\grad{y}_{i}] }{ \V[y_{i}] }
+& = \frac{1}{\V[y_{i}]} \V[\grad{y}_{i}] \\
+& = \left( \frac{ m_{i+1} \E[\gamma_{i}^2] \V[W_{i+1}] }{ m_{i-1} \E[\gamma_{i-1}^2] \V[W_{i}]} \right) \frac{1}{\V[y_{i}]} \V[\grad{y}_{i+1}] \\
+& = \left( \frac{ m_{i+1} \E[\gamma_{i}^2] \V[W_{i+1}] }{ m_{i-1} \E[\gamma_{i-1}^2] \V[W_{i}]} \right) \frac{\V[y_{i+1}]}{\V[y_{i}]} \frac{\V[\grad{y}_{i+1}]}{\V[y_{i+1}]} \\
+& = \frac{ m_{i} m_{i+1} }{ m_{i-1}^2 } \left( \frac{\E[\gamma_{i}^2] }{ \E[\gamma_{i-1}^2] } \frac{ \V[W_{i+1}] }{ \V[W_{i}] } \right)^2 \frac{\V[\grad{y}_{i+1}]}{\V[y_{i+1}]}
+\end{align}
+using
+\begin{equation}
+\frac{\V[y_{i+1}]}{\V[y_{i}]}
+= \frac{ \tfrac{1}{2} m_{i} \V[W_{i+1}] \E[\gamma_{i}^2] }{ \tfrac{1}{2} m_{i-1} \V[W_{i}] \E[\gamma_{i-1}^2] }
+= \frac{  \V[W_{i+1}] \E[\gamma_{i}^2] }{  \V[W_{i}] \E[\gamma_{i-1}^2] } \\
+\end{equation}
+To achieve equal-magnitude relative gradients $\V[\grad{y}_{i}] / \V[y_{i}]$:
+\begin{align}
+\frac{ m_{i} m_{i+1} }{ m_{i-1}^2 } \left( \frac{\E[\gamma_{i}^2] }{ \E[\gamma_{i-1}^2] } \frac{ \V[W_{i+1}] }{ \V[W_{i}] } \right)^2 & = 1 \\
+\frac{\E[\gamma_{i}^2] }{ \E[\gamma_{i-1}^2] } \frac{ \V[W_{i+1}] }{ \V[W_{i}] } & = \frac{m_{i-1}}{\sqrt{m_{i} m_{i+1}}} \\
+\frac{\E[\gamma_{i}^2] }{ \E[\gamma_{i-1}^2] } & = \frac{m_{i-1}}{\sqrt{m_{i} m_{i+1}}} \frac{\V[W_{i}]}{\V[W_{i+1}]}
+\end{align}
+Then we instead obtain
+\begin{align}
+\frac{\beta_{i+1}^2}{\beta_{i}^2} & = \frac{m_{i-1}}{\sqrt{m_{i} m_{i+1}}}
+\end{align}
+The question remains how to apportion $\beta_{i}^2$ between $\E[\gamma_{i-1}^2]$ and $\V[W_{i}]$.
+Furthermore, how to set the global scale of these variables.
+
+Let us expand the recursion for the gradient $\V[\grad{y}_{i}]$ to find its magnitude
+\begin{align}
+\V[\grad{y}_{i}]
+& = \frac{m_{i+1}}{m_{i-1}} \frac{\E[\gamma_{i}^2]}{\E[\gamma_{i-1}^2]} \frac{\V[W_{i+1}]}{\V[W_{i}]} \V[\grad{y}_{i+1}] \\
+%& = \left( \frac{m_{i+1}}{m_{i-1}} \frac{\E[\gamma_{i}^2]}{\E[\gamma_{i-1}^2]} \frac{\V[W_{i+1}]}{\V[W_{i}]} \right) \V[\grad{y}_{i+1}] \\
+& = \left( \frac{m_{i+1}}{m_{i-1}} \frac{\E[\gamma_{i}^2]}{\E[\gamma_{i-1}^2]} \frac{\V[W_{i+1}]}{\V[W_{i}]} \right) \cdots
+  \left( \frac{m_{L}}{m_{L-2}} \frac{\E[\gamma_{L-1}^2]}{\E[\gamma_{L-2}^2]} \frac{\V[W_{L}]}{\V[W_{L-1}]} \right) \V[\grad{y}_{L}] \\
+& = \left( \prod_{j = i}^{L-1} \frac{m_{j+1}}{m_{j-1}} \frac{\E[\gamma_{j}^2]}{\E[\gamma_{j-1}^2]} \frac{\V[W_{j+1}]}{\V[W_{j}]} \right) \V[\grad{y}_{L}] \\
+& = \frac{m_{L-1} m_{L}}{m_{i-1} m_{i}} \frac{\E[\gamma_{L-1}^2]}{\E[\gamma_{i-1}^2]} \frac{\V[W_{L}]}{\V[W_{i}]} \V[\grad{y}_{L}] \\
+& = \frac{C}{m_{i-1} m_{i} \E[\gamma_{i-1}^2] \V[W_{i}]}
+\end{align}
+where we introduce the constant
+\begin{equation}
+C = m_{L-1} m_{L} \E[\gamma_{L-1}^2] \V[W_{L}] \V[\grad{y}_{L}]
+\end{equation}
+As for the case without batch-norm, the gradients are a similar magnitude for all layers.
+One difference is that the constant $C$ does not depend on the depth of the network.
+It is also evident from this formula that we can achieve equal magnitudes by setting
+\begin{equation}
+\beta_{i}^2 = \beta^2 / (m_{i-1} m_{i})
+\end{equation}
+where $\beta_{i}^2 = \E[\gamma_{i-1}^2] \V[W_{i}]$.
+
+Consider expanding the recursion for the relative gradient magnitude
+\begin{align}
+\frac{\V[\grad{y}_{i}]}{\V[y_{i}]}
+& = \frac{1}{\tfrac{1}{2} m_{i-1} \V[W_{i}] \E[\gamma_{i-1}^2]} \frac{C}{m_{i-1} m_{i} \E[\gamma_{i-1}^2] \V[W_{i}]} \\
+& = \frac{2 C}{m_{i-1}^2 m_{i} \E[\gamma_{i-1}^2]^2 \V[W_{i}]^2}
+\end{align}
+and we see that this can fixed constant with the constraint
+\begin{align}
+%m_{i-1}^2 m_{i} (\beta_{i}^2)^2 & = 1 \\
+\beta_{i}^2 & = \frac{\beta^{2}}{m_{i-1} \sqrt{m_{i}}}
+\end{align}
+This is consistent with the earlier constraint $\beta_{i+1}^2 / \beta_{i}^2 = m_{i-1} / \sqrt{m_{i} m_{i+1}}$.
+%\begin{align}
+%%\frac{\beta_{i+1}^2}{\beta_{i}^2} & = \frac{m_{i-1}}{\sqrt{m_{i} m_{i+1}}} \\
+%\frac{\beta_{i+1}^2}{\beta_{i}^2}
+%& = \frac{\beta^{2} / (m_{i} \sqrt{m_{i+1}})}{\beta^{2} / (m_{i-1} \sqrt{m_{i}})}
+%= \frac{m_{i-1} \sqrt{m_{i}}}{m_{i} \sqrt{m_{i+1}}}
+%= \frac{m_{i-1}}{\sqrt{m_{i} m_{i+1}}}
+%\end{align}
+
+We should also consider the magnitude of the output layer $y_{L}$.
+With batch-norm this is trivially guaranteed to be of reasonable magnitude:
+\begin{align}
+\V[y_{L}] = \tfrac{1}{2} m_{L-1} \E[\gamma_{L-1}^2] \V[W_{L}]
+\end{align}
+We should choose something like $\beta_{L}^2 = \E[\gamma_{L-1}^2] \V[W_{L}] \approx 2 / m_{L-1}$.
+
+We consider instead the gradients for the pre-activations $\V[\grad{z}_{i}]$.
+\begin{align}
+\V[\grad{z}_{i}]
+%& = \tfrac{1}{2} \V[\grad{x}_{i}] \\
+%& = \tfrac{1}{2} m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}] \\
+%& = \tfrac{1}{2} m_{i+1} \V[W_{i+1}] \V[y_{i+1}]^{-1} \V[\grad{q}_{i+1}] \\
+%& = \tfrac{1}{2} m_{i+1} \V[W_{i+1}] \V[y_{i+1}]^{-1} \E[\gamma_{i+1}^2] \V[\grad{z}_{i+1}] \\
+& = \frac{m_{i+1} \E[\gamma_{i+1}^2] \V[W_{i+1}]}{2 \V[y_{i+1}]} \V[\grad{z}_{i+1}] \\
+& = \frac{m_{i+1} \E[\gamma_{i+1}^2] \V[W_{i+1}]}{m_{i} \E[\gamma_{i}^2] \V[W_{i+1}]} \V[\grad{z}_{i+1}] \\
+& = \frac{m_{i+1} \E[\gamma_{i+1}^2]}{m_{i} \E[\gamma_{i}^2]} \V[\grad{z}_{i+1}]
+\end{align}
+To achieve equal-magnitude gradients for $\grad{z}_{i}$:
+\begin{align}
+\frac{m_{i+1} \E[\gamma_{i+1}^2]}{m_{i} \E[\gamma_{i}^2]} = 1 \\
+\frac{\E[\gamma_{i+1}^2]}{\E[\gamma_{i}^2]} = \frac{m_{i}}{m_{i+1}}
+\end{align}
+Or if we expand the recursion, we obtain
+\begin{align}
+\V[\grad{z}_{i}]
+& = \frac{m_{i+1} \E[\gamma_{i+1}^2]}{m_{i} \E[\gamma_{i}^2]} \V[\grad{z}_{i+1}] \\
+& = \left( \frac{m_{i+1} \E[\gamma_{i+1}^2]}{m_{i} \E[\gamma_{i}^2]} \right) \cdots
+  \left( \frac{m_{L} \E[\gamma_{L}^2]}{m_{L-1} \E[\gamma_{L-1}^2]} \right) \V[\grad{z}_{L}] \\
+& = \left( \prod_{j = i}^{L-1} \frac{m_{j+1} \E[\gamma_{j+1}^2]}{m_{j} \E[\gamma_{j}^2]} \right) \V[\grad{z}_{L}] \\
+& = \frac{m_{L} \E[\gamma_{L}^2]}{m_{i} \E[\gamma_{i}^2]} \V[\grad{z}_{L}]
+\end{align}
+where we define $\grad{z}_{L} = $ for convenience.
+To make the above expression constant, it suffices to set $\E[\gamma_{i}^2] = \Gamma^2 / m_{i}$.
+
+\subsection{Parameters}
+
+Inspect the gradients for the weight parameters.
+\begin{align}
+\frac{\V[\grad{W}_{i}]}{\V[\grad{W}_{i+1}]}
+& = \frac{\V[\grad{y}_{i}] \E[x_{i-1}^2]}{\V[\grad{y}_{i+1}] \E[x_{i}^2]} \\
+& = \frac{\V[\grad{y}_{i}]}{\V[\grad{y}_{i+1}]} \frac{\E[x_{i-1}^2]}{\E[x_{i}^2]} \\
+& = \frac{ m_{i+1} \E[\gamma_{i}^2] \V[W_{i+1}] }{ m_{i-1} \E[\gamma_{i-1}^2] \V[W_{i}] }
+  \frac{ \tfrac{1}{2} \E[\gamma_{i-1}^2] }{ \tfrac{1}{2} \E[\gamma_{i}^2] } \\
+& = \frac{ m_{i+1} \V[W_{i+1}] }{ m_{i-1} \V[W_{i}] }
+\end{align}
+To obtain equal-magnitude gradients $\V[\grad{W}_{i}]$:
+\begin{align}
+ \frac{ m_{i+1} \V[W_{i+1}] }{ m_{i-1} \V[W_{i}] } & = 1 \\
+ \frac{\V[W_{i+1}]}{\V[W_{i}]} & = \frac{m_{i-1}}{m_{i+1}}
+\end{align}
+This provides a mechanism to set $\V[W_{i}]$ independent of $\E[\gamma_{i-1}^2]$.
+
+Consider the relative gradient magnitudes
+\begin{align}
+\frac{ \V[\grad{W}_{i}] / \V[W_{i}] }{ \V[\grad{W}_{i+1}] / \V[W_{i+1}] }
+& = \frac{\V[\grad{W}_{i}]}{\V[\grad{W}_{i+1}]} \frac{\V[W_{i+1}]}{\V[W_{i}]} \\
+& = \frac{ m_{i+1} \V[W_{i+1}] }{ m_{i-1} \V[W_{i}] } \frac{\V[W_{i+1}]}{\V[W_{i}]} \\
+& = \frac{m_{i+1}}{m_{i-1}} \left(\frac{\V[W_{i+1}]}{\V[W_{i}]}\right)^2
+\end{align}
+To obtain equal-magnitude relative gradients $\V[\grad{W}_{i}] / \V[W_{i}]$:
+\begin{align}
+\frac{m_{i+1}}{m_{i-1}} \left(\frac{\V[W_{i+1}]}{\V[W_{i}]}\right)^2 & = 1 \\
+\frac{\V[W_{i+1}]}{\V[W_{i}]} & = \frac{\sqrt{m_{i-1}}}{\sqrt{m_{i+1}}}
+\end{align}
+
+Consider the absolute form for the gradient $\V[\grad{W}_{i}]$:
+\begin{align}
+\V[\grad{W}_{i}] & = \V[\grad{y}_{i}] \E[x_{i-1}^2] \\
+%& = \left( \frac{m_{L-1} m_{L}}{m_{i-1} m_{i}} \frac{\E[\gamma_{L-1}^2]}{\E[\gamma_{i-1}^2]} \frac{\V[W_{L}]}{\V[W_{i}]} \V[\grad{y}_{L}] \right)
+%  \left( \tfrac{1}{2} \E[\gamma_{i-1}^2] \right) \\
+%& = \left( \frac{m_{L-1} m_{L}}{m_{i-1} m_{i}} \frac{\E[\gamma_{L-1}^2]}{\E[\gamma_{i-1}^2]} \frac{\V[W_{L}]}{\V[W_{i}]} \V[\grad{y}_{L}] \right)
+%  \left( \tfrac{1}{2} \E[\gamma_{i-1}^2] \right) \\
+& = \frac{C}{m_{i-1} m_{i} \E[\gamma_{i-1}^2] \V[W_{i}]}
+  \left( \tfrac{1}{2} \E[\gamma_{i-1}^2] \right) \\
+& = \frac{C}{2 m_{i-1} m_{i} \V[W_{i}]}
+\end{align}
+Clearly, for the relative gradient $\V[\grad{W}_{i}] / \V[W_{i}]$
+\begin{align}
+\frac{\V[\grad{W}_{i}]}{\V[W_{i}]} & = \frac{C}{2 m_{i-1} m_{i} \V[W_{i}]^2}
+\end{align}
+%Now let us define $\alpha_{i}^2 = \V[W_{i}]$.
+To make the above equation constant, it is sufficient to choose
+\begin{align}
+\V[W_{i}] = \alpha_{i}^2 = \frac{\alpha^2}{\sqrt{m_{i-1} m_{i}}}
+\end{align}
+What effect does the global parameter $\alpha^2$ have?

@@ -1,0 +1,27 @@
+The differentials of the equations that define the network are:
+\begin{equation}
+\left\{ \begin{aligned}
+\obj{dx}_{i} & = \nabla\sigma(\obj{y}_{i}) \odot \obj{dy}_{i} \\
+\obj{dy}_{i} & = \obj{dW}_{i} \obj{x}_{i - 1} + \obj{W}_{i} dx_{i - 1} + \obj{db}_{i}
+\end{aligned} \right.
+\end{equation}
+
+For the first equation:
+\begin{align}
+\langle \gradobj{y}_{i}, \obj{dy}_{i} \rangle & = \langle \gradobj{y}_{i}, \obj{dW}_{i} \obj{x}_{i - 1} + \obj{W}_{i} \obj{dx}_{i - 1} + \obj{db}_{i} \rangle \\
+& = \langle \gradobj{y}_{i} \obj{x}_{i - 1}^T, \obj{dW}_{i} \rangle + \langle \obj{W}_{i}^T \gradobj{y}_{i}, \obj{dx}_{i - 1} \rangle + \langle \gradobj{y}_{i}, \obj{db}_{i} \rangle \\
+& = \langle \gradobj{W}_{i}, \obj{dW}_{i} \rangle + \langle \gradobj{x}_{i-1}, \obj{dx}_{i-1} \rangle + \langle \gradobj{b}_{i}, \obj{db}_{i} \rangle
+\end{align}
+This provides the derivatives:
+\begin{align}
+\gradobj{W}_{i} & = \gradobj{y}_{i} \obj{x}_{i - 1}^T \\
+\gradobj{x}_{i - 1} & = \obj{W}_{i}^T \gradobj{y}_{i} \\
+\gradobj{b}_{i} & = \gradobj{y}_{i}
+\end{align}
+
+For the second equation:
+\begin{align}
+\langle \gradobj{x}_{i}, dx_{i} \rangle & = \langle \gradobj{x}_{i}, \nabla\sigma(\obj{y}_{i}) \odot \obj{dy}_{i} \rangle \\
+& = \langle \nabla\sigma(\obj{y}_{i}) \odot \gradobj{x}_{i}, \obj{dy}_{i} \rangle \\
+\gradobj{y}_{i} & = \nabla\sigma(\obj{y}_{i}) \odot \gradobj{x}_{i}
+\end{align}

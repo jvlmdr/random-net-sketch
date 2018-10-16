@@ -1,0 +1,149 @@
+\section{Network definition}
+
+Let's consider a Siamese network with two branches labelled $\A$ and $\B$, and a final layer that computes an inner product followed by a learned gain and bias.
+The network is defined:
+\begin{align}
+\obj{y}_{i}^{s} & = \obj{W}_{i} \obj{x}_{i - 1}^{s} + \obj{b}_{i} && s = \A, \B; \quad i = 1, \dots, L\\
+\obj{x}_{i}^{s} & = \sigma(\obj{y}_{i}^{s}) && s = \A, \B; \quad i = 1, \dots, L - 1 \\
+u & = \langle \obj{y}_{L}^{\A}, \obj{y}_{L}^{\B} \rangle \\
+y_{L+1} & = w_{L+1} u + b_{L+1}
+\end{align}
+with a final loss $\ell = E(y_{L + 1}) = f(\obj{x}_{0}^\A, \obj{x}_{0}^\B, \mathbf{W}, \mathbf{b})$.
+The gradients for the final layers are:
+\begin{align}
+\grad{u} & = \grad{y}_{L+1} w_{L+1} \\
+\grad{w}_{L+1} & = \grad{y}_{L+1} u \\
+\grad{b}_{L+1} & = \grad{y}_{L+1} \\
+\gradobj{y}_{L}^{\A} & = \grad{u} \obj{y}_{L}^{\B} \\
+\gradobj{y}_{L}^{\B} & = \grad{u} \obj{y}_{L}^{\A}
+\end{align}
+The gradients for layers $1, \dots, L$ will be largely the same, except that the gradients for the weights $\gradobj{W}_{i}$ will be accumulated from both branches:
+\begin{align}
+\gradobj{W}_{i} & = \textstyle \sum_{s} \gradobj{y}_{i}^{s} (\obj{x}_{i - 1}^{s})^T && i = L, \dots, 1 \\
+\gradobj{b}_{i} & = \textstyle \sum_{s} \gradobj{y}_{i}^{s} && i = L, \dots, 1 \\
+\gradobj{x}_{i}^{s} & = \obj{W}_{i + 1}^T \gradobj{y}_{i + 1}^{s} && i = L-1, \dots, 1 \\
+\gradobj{y}_{i}^{s} & = \nabla\sigma(\obj{y}_{i}^{s}) \odot \gradobj{x}_{i}^{s} && i = L - 1, \dots, 1
+\end{align}
+
+
+It can be seen that the gradients $\gradobj{y}_{L}^{s}$ are now scaled by $w_{L+1}$ and $\obj{y}_{L}^{t}$ where $t \ne s$.
+This is quite different to what we saw before, since the gradients of the activations $\gradobj{y}_{L}^{s}$ are scaled by the activations themselves $\obj{y}_{L}^{t}$.
+
+Let's inspect the gradients of the output subnet (assuming that $\E[\grad{y}_{L+1}] = 0$ and $\E[y_{L}] = 0$)
+\begin{align}
+\V[\grad{w}_{L+1}] = m_{L} \V[\grad{y}_{L+1}] \V[y_{L}]^{2}
+\end{align}
+Compare this to the other weights' gradients
+\begin{align}
+\V[\grad{W}_{i}] & = 2 \V[\grad{y}_{i}] \E[x_{i - 1}^2] && i = 1, \dots, L
+\end{align}
+Whereas the former is a product of three variances, the latter is a product of two variances (or variance-like values).
+Assuming that the magnitude of these variances are similar, we should aim to keep $\V[y_{L}] \approx 1$, or else the magnitude of the grad $\V[\grad{w}_{L+1}]$ may be significantly different to other magnitudes.
+
+How can we influence $\V[y_{L}]$?
+\begin{align}
+\V[y_{L}] & = 2 \left(\prod_{j = 1}^{i} \tfrac{1}{2} m_{j - 1} \V[W_{j}]\right) \E[x_{0}^2] \\
+\intertext{assume $\E[x_{0}^2] = 1$}
+\V[y_{L}] & = 2 \left(\prod_{j = 1}^{L} \tfrac{1}{2} m_{j - 1} \alpha_{j}^2\right) \\
+\intertext{and if we adopt $\alpha_{j}^2 = 2/m_{j}$ for $j \ge 2$}
+\V[y_{L}] & = m_{0} \alpha_{1}^2 \left(\prod_{j = 2}^{L} \frac{m_{j-1}}{m_{j}} \right)
+  = \frac{m_{0} m_{1} \alpha_{1}^2}{m_{L}}
+\end{align}
+Therefore we can choose
+\begin{equation}
+\alpha_{1}^2 = \frac{m_{L}}{m_{0} m_{1}}
+\end{equation}
+to achieve $\V[y_{L}] = 1$.
+If we assume that all $m_{i}$ are roughly equal, we could use $\alpha_{i}^2 = 1 / \sqrt{m_{0} m_{1}}$.
+\begin{align}
+\V[\grad{w}_{L+1}] = m_{L} \V[\grad{y}_{L+1}] \V[y_{L}]^{2}
+\end{align}
+
+We still observe a big difference between $\V[\grad{w}_{L+1}]$ and $\V[\grad{W}_{i}]$.
+Note that also the magnitude of $\grad{w}_{L+1} \approx 1$ is 
+
+We also need the initial output to be of the desired magnitude.
+How can we control the magnitude of the 
+
+\vspace{2em}
+
+Additionally, we might also want to consider the dot product normalized by the square root of the number of elements
+\begin{equation}
+h(x, y) = \frac{1}{\sqrt{m}} \sum_{i = 1}^{m} \obj{x}_{i} \obj{y}_{i}
+\end{equation}
+Let us introduce a constant $\rho$ that controls the magnitude of the inner product
+\begin{equation}
+y_{L+1} = w_{L+1} \cdot \rho \cdot \langle \obj{y}_{L}^{\A},  \obj{y}_{L}^{\B} \rangle + b_{L+1}
+\end{equation}
+which affects the local gradients at the output:
+\begin{equation}
+\left\{ \begin{aligned}
+\grad{w}_{L+1} & = \grad{y}_{L+1} \rho \langle \obj{y}_{L}^{\A}, \obj{y}_{L}^{\B} \rangle \\
+\gradobj{y}_{L}^{\A} & = \grad{y}_{L+1} \rho w_{L+1} \obj{y}_{L}^{\B} \\
+\gradobj{y}_{L}^{\B} & = \grad{y}_{L+1} \rho w_{L+1} \obj{y}_{L}^{\A}
+\end{aligned} \right.
+\end{equation}
+This will scale all gradients in the network by $\rho$ without affecting the magnitude of the weights $\V[W_{i}]$.
+
+If we are hypothesizing that the important thing is the \emph{relative} magnitude of the grad, maybe we can use this to adjust the relative magnitudes of all weights?
+But would it also place an initial prior on the weights?
+Maybe we can periodically re-parameterize the network to achieve the desired properties?
+
+The magnitudes of the modified gradients are
+\begin{align}
+\V[\grad{w}_{L+1}] = \rho^{2} m_{L} \V[\grad{y}_{L+1}] \V[y_{L}]^{2}
+\end{align}
+If we set $\rho = \sqrt{m_{L}}$, we should be able to achieve $\V[\grad{w}_{L+1}] = 1$.
+
+
+%\begin{align}
+%f(\obj{x}_{0}^\A, \obj{x}_{0}^\B, \obj{W}_{1 \dots L+1}, \obj{b}_{1 \dots L+1})
+%& = f_{i}(\obj{x}_{i}^\A, \obj{x}_{i}^\B, \obj{W}_{i+1 \dots L+1}, \obj{b}_{i+1 \dots L+1})
+%\end{align}
+%\begin{align}
+%\langle \gradobj{y}_{L+1}, dy_{L+1} \rangle
+%& = \langle \gradobj{x}_{L+1}, dy_{L+1} \rangle
+%& = f_{i}(\obj{x}_{i}^\A, \obj{x}_{i}^\B, \obj{W}_{i+1 \dots L+1}, \obj{b}_{i+1 \dots L+1})
+%\end{align}
+
+\begin{subappendices}
+
+\section{Gradients}
+
+Let $u = \langle \obj{y}_{L}^{\A}, \obj{y}_{L}^{\B} \rangle$ such that $y_{L+1} = w_{L+1} u + b_{L+1}$.
+The differentials are
+\begin{equation}
+\left\{ \begin{aligned}
+dy_{L+1} & = dw_{L+1} u + w_{L+1} du + db_{L+1} \\
+du & = \langle \obj{dy}_{L}^{\A}, \obj{y}_{L}^{\B} \rangle + \langle \obj{y}_{L}^{\A}, \obj{dy}_{L}^{\B} \rangle
+\end{aligned} \right.
+\end{equation}
+Obtaining the gradients:
+%\begin{align}
+%\gradobj{y}_{L+1} dy_{L+1}
+%& = \gradobj{y}_{L+1} \left(dW_{L+1} u + \obj{W}_{L+1} du + db_{L+1}\right) \\
+%& = \gradobj{y}_{L+1} \left(dW_{L+1} u + \obj{W}_{L+1} du + db_{L+1}\right) \\
+%& = \gradobj{W}_{L+1} dW_{L+1} + \grad{u} du + \gradobj{b}_{L+1} db_{L+1}
+%\end{align}
+\begin{equation}
+\left\{ \begin{aligned}
+\grad{u} & = \grad{y}_{L+1} w_{L+1} \\
+\grad{w}_{L+1} & = \grad{y}_{L+1} u = \grad{y}_{L+1} \langle \obj{y}_{L}^{\A}, \obj{y}_{L}^{\B} \rangle \\
+\grad{b}_{L+1} & = \grad{y}_{L+1}
+\end{aligned} \right.
+\end{equation}
+and:
+%\begin{align}
+%\grad{u} du
+%& = \grad{u} \left( \langle dy_{L}^{\A},  \obj{y}_{L}^{\B} \rangle + \langle \obj{y}_{L}^{\A},  dy_{L}^{\B} \rangle \right) \\
+%& = \grad{u} \left( \langle dy_{L}^{\A},  \obj{y}_{L}^{\B} \rangle + \langle \obj{y}_{L}^{\A},  dy_{L}^{\B} \rangle \right) \\
+%& = \langle \gradobj{y}_{L}^{\A}, dy_{L}^{\A} \rangle + \langle \gradobj{y}_{L}^{\B}, dy_{L}^{\B} \rangle
+%\end{align}
+\begin{equation}
+\left\{ \begin{aligned}
+\gradobj{y}_{L}^{\A} & = \grad{u} \obj{y}_{L}^{\B} = \grad{y}_{L+1} w_{L+1} \obj{y}_{L}^{\B} \\
+\gradobj{y}_{L}^{\B} & = \grad{u} \obj{y}_{L}^{\A} = \grad{y}_{L+1} w_{L+1} \obj{y}_{L}^{\A}
+\end{aligned} \right.
+\end{equation}
+
+\end{subappendices}

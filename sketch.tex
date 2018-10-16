@@ -1,0 +1,41 @@
+\documentclass[oneside,10pt]{book}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{appendix}
+
+\allowdisplaybreaks
+
+\title{Batch-normalization and bilinear operations}
+\author{JLV}
+
+\newcommand{\obj}[1]{\boldsymbol{\mathbf{#1}}}
+\newcommand{\gradobj}[1]{\boldsymbol{\mathbf{\bar{#1}}}}
+\newcommand{\grad}[1]{\bar{#1}}
+
+\newcommand{\relu}{\operatorname{ReLU}}
+\newcommand{\sign}{\operatorname{sign}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\trace}{\operatorname{tr}}
+\newcommand{\bnorm}{\operatorname{BN}}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\V}{\mathbb{V}}
+
+\newcommand{\A}{\mathcal{A}}
+\newcommand{\B}{\mathcal{B}}
+
+
+\begin{document}
+\maketitle
+
+\chapter{Simple network}
+\input{simple_net}
+
+\chapter{Batch-norm network}
+\input{bnorm_net}
+
+\chapter{Siamese network}
+\input{siamese_net}
+
+\end{document}

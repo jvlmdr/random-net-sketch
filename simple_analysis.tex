@@ -1,0 +1,89 @@
+This analysis follows that of the PReLU paper.
+\begin{align}
+(\obj{y}_{i})_{u} & = \sum_{v = 1}^{n_{i}} (\obj{W}_{i})_{u v} (\obj{x}_{i - 1})_{v} + (\obj{b}_{i})_{v} \\
+\V[y_{i}] & = n_{i} \V[W_{i} \cdot x_{i-1}] + \V[b_{i}] \\
+\intertext{then, using the independence of $W_{i}$ and $x_{i-1}$ and that $\E[W_{i}] = 0$}
+\V[y_{i}] & = n_{i} \V[W_{i}] \E[x_{i-1}^2] + \V[b_{i}]
+\end{align}
+We can also easily observe that $\E[y_{i}] = \E[b_{i}]$.
+
+To find the variance of $\obj{x}_{i} = \sigma(\obj{y}_{i})$, it helps to assume that $\obj{b}_{i} = 0$ and therefore $\E[y_{i}] = 0$.
+Let us further assume that the distribution of $y_{i}$ is symmetric about zero.
+Then we can obtain
+\begin{align}
+\E[x_{i}^2] = \E[\sigma^2(y_{i})] = \int_{0}^{\infty} y_{i}^2 dP(y_{i}) = \frac{1}{2} \int_{-\infty}^{\infty} y_{i}^2 dP(y_{i}) = \frac{1}{2} \V[y_{i}]
+\end{align}
+
+As an aside, if we are interested in the variance $\V[x_{i}]$ rather than the squared magnitude $\E[x_{i}^2]$, then we can explicitly assume that the distribution of $y_{i}$ is Gaussian (which is plausible since it is a sum of many random variables and may therefore be approximately Gaussian according to the Central Limit Theorem), and obtain
+\begin{align}
+\E[x_{i}] & = \int_{0}^{\infty} y_{i} dP(y_{i}) = \tfrac{1}{\sqrt{2 \pi}} \sqrt{\V[y_{i}]} \approx 0.399 \sqrt{\V[y_{i}]} \\
+\V[x_{i}] & = \E[x_{i}^2] - \E[x_{i}]^2 = (\tfrac{1}{2} - \tfrac{1}{2 \pi}) \V[y_{i}] \approx 0.341 \V[y_{i}]
+\end{align}
+
+This gives us a recursion between $\E[x_{i}^2]$ and $\E[x_{i - 1}^2]$
+\begin{align}
+\E[x_{i}^2] = \tfrac{1}{2} \V[y_{i}] & = \tfrac{1}{2} m_{i - 1} \V[W_{i}] \E[x_{i - 1}^2] \\
+& = \left(\tfrac{1}{2} m_{i - 1} \V[W_{i}]\right) \left(\tfrac{1}{2} m_{i-2} \V[W_{i-1}]\right) \E[x_{i-2}^2] \\
+& = \left(\tfrac{1}{2} m_{i - 1} \V[W_{i}]\right) \dots \left(\tfrac{1}{2} m_{0} \V[W_{1}]\right) \E[x_{0}^2] \\
+& = \left( \prod_{j = 1}^{i} \tfrac{1}{2} m_{j - 1} \V[W_{j}] \right) \E[x_{0}^2]
+\end{align}
+
+Now let us consider the gradients.
+First we establish that $\E[\grad{x}_{i}] = \E[\grad{y}_{i}] = 0$.
+\begin{align}
+(\gradobj{x}_{i})_{u} & = (\obj{W}_{i+1}^{T} \gradobj{y}_{i+1})_{u} = \sum_{v = 1}^{m_{i+1}} (\obj{W}_{i+1})_{v u} (\gradobj{y}_{i+1})_{v} \\
+\E[\grad{x}_{i}] & = m_{i+1} \E[W_{i+1} \grad{y}_{i+1}] \\
+\intertext{and if we then assume that $\grad{y}_{i+1}$ is independent of $W_{i+1}$, then we obtain}
+& = m_{i+1} \E[W_{i+1}] \E[\grad{y}_{i+1}] = 0
+\end{align}
+We can also observe that
+\begin{align}
+\E[\grad{y}_{i}] & = \E[\nabla\sigma(y_{i}) \cdot \grad{x}_{i}] \\
+\intertext{using the independence of $y_{i}$ and $\grad{x}_{i}$, and the symmetry of $y_{i}$ about zero}
+& =  \E[\nabla\sigma(y_{i})] \E[\grad{x}_{i}] = \tfrac{1}{2} \E[\grad{x}_{i}] = 0
+\end{align}
+The variances can then be established
+\begin{align}
+\V[\grad{y}_{i}]
+& = \V[\nabla \sigma(y_{i}) \cdot \grad{x}_{i}] \\
+& = \E[(\nabla \sigma(y_{i}))^2] \E[\grad{x}_{i}^2] - \E[\nabla \sigma(y_{i})]^2 \E[\grad{x}_{i}]^2 \\
+& = \tfrac{1}{2} \V[\grad{x}_{i}]
+\end{align}
+and
+\begin{align}
+(\gradobj{x}_{i})_{u} & = (\obj{W}_{i+1}^{T} \gradobj{y}_{i+1})_{u} = \sum_{v = 1}^{m_{i+1}} (\obj{W}_{i+1})_{v u} (\gradobj{y}_{i+1})_{v} \\
+\V[\grad{x}_{i}] & = m_{i+1} \V[W_{i+1} \grad{y}_{i+1}] \\
+& = m_{i+1} \left( \E[W_{i+1}^2] \E[\grad{y}_{i+1}^2] - \E[W_{i+1}]^2 \E[\grad{y}_{i+1}]^2 \right) \\
+& = m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}]
+\end{align}
+The original gradient starts at $\gradobj{y}_{L}$.
+\begin{align}
+\V[\grad{y}_{i}] = \tfrac{1}{2} \V[\grad{x}_{i}] & = \tfrac{1}{2} m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}] \\
+& = \left(\tfrac{1}{2} m_{i+1} \V[W_{i+1}]\right) \left(\tfrac{1}{2} m_{i+2} \V[W_{i+2}]\right) \V[\grad{y}_{i+2}] \\
+& = \left(\tfrac{1}{2} m_{i+1} \V[W_{i+1}]\right) \cdots \left(\tfrac{1}{2} m_{L} \V[W_{L}]\right) \V[\grad{y}_{L}] \\
+& = \left( \prod_{j = i+1}^{L} \tfrac{1}{2} m_{j} \V[W_{j}] \right) \V[\grad{y}_{L}]
+\end{align}
+Finally, we can inspect the gradients with respect to the parameters
+\begin{align}
+(\gradobj{W}_{i})_{u v} & = (\gradobj{y}_{i})_{u} (\obj{x}_{i - 1})_{v} \\
+\V[\grad{W}_{i}] & = \V[\grad{y}_{i} x_{i-1}] \\
+& = \E[\grad{y}_{i}^2] \E[x_{i-1}^2] - \E[\grad{y}_{i}]^2 \E[x_{i-1}]^2 \\
+& = \V[\grad{y}_{i}] \E[x_{i-1}^2]
+\end{align}
+And if we substitute the results from above, we obtain
+\begin{align}
+\V[\grad{W}_{i}] & = \V[\grad{y}_{i}] \E[x_{i-1}^2] \\
+& = \left( \prod_{j = 1}^{i-1} \tfrac{1}{2} m_{j - 1} \V[W_{j}] \right)
+  \left( \prod_{j = i+1}^{L} \tfrac{1}{2} m_{j} \V[W_{j}] \right)
+  \E[x_{0}^2] \V[\grad{y}_{L}]
+\end{align}
+If we introduce a constant
+\begin{equation}
+C = \frac{1}{2^{L-1}} \left(\prod_{j=0}^{L} m_{j} \right) \left(\prod_{j=1}^{L} \V[W_{j}] \right)
+  \E[x_{0}^2] \V[\grad{y}_{L}]
+\end{equation}
+then we can express the above as
+\begin{equation}
+\V[\grad{W}_{i}] = \frac{C}{m_{i-1} m_{i} \V[W_{i}]}
+\end{equation}
+In fact, this shows that the relative magnitude $\V[\grad{W}_{i}] / \V[W_{i}]$ is quite close to a constant.

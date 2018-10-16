@@ -1,0 +1,343 @@
+\section{Network definition}
+
+Consider a fully-connected network with $L$ linear layers.
+Let $\obj{y}_{i}$ denote the pre-activations and $\obj{x}_{i}$ denote the output of the layer.
+The network then maps $\obj{x}_{0} \mapsto \obj{y}_{L}$ according to:
+\begin{equation}
+\left\{ \begin{aligned}
+\obj{y}_{i} & = \obj{W}_{i} \obj{x}_{i - 1} + \obj{b}_{i} && i = 1, \dots, L\\
+\obj{x}_{i} & = \sigma(\obj{y}_{i}) && i = 1, \dots, L - 1
+\end{aligned} \right.
+\end{equation}
+where $\sigma$ is the ReLU function $\sigma(y) = \max(0, y)$, and it is applied element-wise to a vector.
+Let $m_{i}$ denote the dimension of the vectors $\obj{y}_{i}$ and $\obj{x}_{i}$.
+Let the dimension of each matrix $W_{i}$ be denoted $m_{i} \times n_{i}$.
+For a fully-connected network, we have $n_{i} = m_{i-1}$ (this is not the case for a convolutional network, where multiple pixels from the previous layer are used to compute one pixel in the current layer).
+
+The loss is a scalar $\ell = E(\obj{y}_{L}) = f(\obj{x}_{0}, \obj{W}_{1}, \obj{b}_{1}, \dots, \obj{W}_{L}, \obj{b}_{L})$.
+Let the notation $\gradobj{v} \equiv \partial \ell / \partial \obj{v}$ represent the derivative of the scalar $\ell$ with respect to any variable $\obj{v}$.
+The dimension of $\gradobj{v}$ is identical to that of $\obj{v}$.
+Gradient descent involves computing $\gradobj{W}_{i}$ and $\gradobj{b}_{i}$ for all $i$, which are obtained through back-propagation (see Section~\ref{sec:simple_derivatives} for the details of the derivation)
+\begin{equation}
+\left\{ \begin{aligned}
+\gradobj{W}_{i} & = \gradobj{y}_{i} \obj{x}_{i - 1}^T & i & = L, \dots, 1 \\
+\gradobj{b}_{i} & = \gradobj{y}_{i} & i & = L, \dots, 1 \\
+\gradobj{x}_{i} & = \obj{W}_{i + 1}^T \gradobj{y}_{i + 1} & i & = L-1, \dots, 1 \\
+\gradobj{y}_{i} & = \gradobj{x}_{i} \odot \nabla\sigma(\obj{y}_{i}) & i & = L - 1, \dots, 1
+\end{aligned} \right.
+\end{equation}
+where $\odot$ denotes element-wise multiplication.
+The pseudo-derivative of the ReLU function is $\nabla\sigma(y) = 1[y \ge 0]$.
+
+\section{Random variables}
+
+Let us consider all variables in the network $\obj{x}_{i}$, $\obj{y}_{i}$, $\obj{W}_{i}$, $\obj{b}_{i}$ to be random vectors with iid elements.
+Since all elements $(\obj{v})_{u}$ of a vector $\obj{v}$ of iid random variables have the same distribution, let us use simply $v$ to denote a random variable with this distribution.
+
+We can then study the distributions of $\grad{W}_{i}$ as a function of the input variables $x_{0}$, the parameters $W_{i}$ and $b_{i}$ and the gradient of the loss with respect to the output $\grad{y}_{L}$.
+This will enable us to design a random network initialization with properties that we want.
+
+%If we are not careful with the network initialization, we may have enormous differences in magnitude between the gradients and the weights.
+%Is this a problem, if each layer has similar magnitude gradients and weights?
+
+%Assume that each element of $\obj{x}_{0}$ is iid $\mathcal{N}(0, 1)$.
+
+%Let us consider a random input $\obj{x}_{0}$ and random initial weights $\obj{W}_{i}$ and biases $\obj{b}_{i}$.
+%What are the distributions of activations and gradients?
+
+\section{Desiderata}
+
+We desire the magnitude of the gradients relative to the parameters $\V[\grad{W}_{i}] / \V[W_{i}]$ to be roughly equal for all layers $i$.
+This ensures that \emph{additive} gradient steps have a similar effect on the \emph{relative} change in each layer.
+We might require the same of the bias parameters $\V[\grad{b}_{i}] / \V[b_{i}]$, except it is often useful in analysis to assume that $\obj{b}_{i} = 0$.
+As an alternative, we might ask that the gradient with respect to the pre-activations $\V[\grad{b}_{i}] / \V[y_{i}]$ is similar for all layers $i$.
+Note that if we can keep the magnitudes $\V[W_{i}]$ (resp.\ $\V[y_{i}]$) roughly equal, then it is sufficient to ensure that the gradients $\V[\grad{W}_{i}]$ (resp.\ $\V[\grad{b}_{i}]$) are roughly equal across layers.
+
+Furthermore, we should choose $\V[W_{i}]$ to be roughly equal for all layers $i$.
+This is important because gradient descent with learning rate $\eta$ effectively optimizes a first-order approximation with Hessian $(1/\eta) I$:
+\begin{equation}
+\theta_{t+1} = \theta_{t} - \eta g_{t}
+= \arg \min_{\theta} \{ f(\theta_{t}) + g_{t}^{T} (\theta - \theta_{t}) + \tfrac{1}{2 \eta} \| \theta - \theta_{t} \|^{2} \}
+\end{equation}
+where $g_{t} = \nabla_{\theta} f(\theta_{t})$.
+This encodes a prior that each step $\theta - \theta_{t}$ should have roughly equal magnitude in all directions.
+
+It is important that the output of this random network is in a reasonable range, such as $\E[y_{L}] \approx 0$ and $\V[y_{L}] \approx 1$.
+
+Finally, the relative magnitude of the gradients should be similar for different networks, such that the optimization procedure is not too sensitive to the choice of learning rate.
+The magnitude of the gradients for the weights relative to the gradients for the biases similarly should not vary much between networks.
+
+\section{Analysis}
+
+Let us assume that $\E[x_{0}] = 0$ and $\V[x_{0}] = 1$.
+If we further assume that $\obj{b}_{i} = 0$, that the distribution of $y_{i}$ is symmetric around zero, and that gradients and values are independent, then we obtain (see Section~\ref{} for detailed derivation):
+\begin{align}
+%\E[x_{i}^2] & = \tfrac{1}{2} \V[y_{i}] = \tfrac{1}{2} m_{i - 1} \V[W_{i}] \E[x_{i - 1}^2] && i = 1, \dots, L \\
+\V[y_{i}] & = m_{i - 1} \V[W_{i}] \E[x_{i - 1}^2] && i = 1, \dots, L \\
+\E[x_{i}^2] & = \tfrac{1}{2} \V[y_{i}] \nonumber \\
+& = \tfrac{1}{2} m_{i - 1} \V[W_{i}] \E[x_{i - 1}^2] && i = 1, \dots, L-1 \\
+\V[\grad{x}_{i}] & = m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}] && i = 0, \dots, L-1 \\
+\V[\grad{y}_{i}] & = \tfrac{1}{2} \V[\grad{x}_{i}] \nonumber \\
+& = \tfrac{1}{2} m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}] && i = 1, \dots, L-1 \\
+\V[\grad{W}_{i}] & = \V[\grad{y}_{i}] \E[x_{i-1}^2] && i = 1, \dots, L
+\end{align}
+If we expand these recursions, we obtain
+\begin{align}
+\E[x_{i}^2] & = \left( \prod_{j = 1}^{i} \tfrac{1}{2} m_{j - 1} \V[W_{j}] \right) \E[x_{0}^2] \\
+\V[\grad{y}_{i}] & = \left( \prod_{j = i+1}^{L} \tfrac{1}{2} m_{j} \V[W_{j}] \right) \V[\grad{y}_{L}] \\
+\V[\grad{W}_{i}] & =
+  \left( \prod_{j = 1}^{i-1} \tfrac{1}{2} m_{j - 1} \V[W_{j}] \right)
+  \left( \prod_{j = i+1}^{L} \tfrac{1}{2} m_{j} \V[W_{j}] \right)
+  \E[x_{0}^2] \V[\grad{y}_{L}]
+\end{align}
+and recall that $\V[\grad{b}_{i}] = \V[\grad{y}_{i}]$.
+Furthermore, if we introduce a constant
+\begin{equation}
+C = \frac{1}{2^{L-1}} \left(\prod_{j=0}^{L} m_{j} \right) \left(\prod_{j=1}^{L} \V[W_{j}] \right)
+  \E[x_{0}^2] \V[\grad{y}_{L}]
+\end{equation}
+then we can express the above as
+\begin{equation}
+\V[\grad{W}_{i}] = \frac{C}{m_{i-1} m_{i} \V[W_{i}]}
+\end{equation}
+In fact, this shows that the gradient is inversely proportional to the magnitude of the weights $\V[\grad{W}_{i}] \propto \V[W_{i}]^{-1}$.
+This is the opposite of the desired situation $\V[\grad{W}_{i}] \propto \V[W_{i}]$.
+However, if we choose all $\V[W_{i}] \approx \V[W_{j}]$ and $m_{i} \approx m_{j}$, we will also have gradients of similar magnitudes $\V[\grad{W}_{i}] \approx \V[\grad{W}_{j}]$.
+
+\section{Achieving the desiderata}
+
+%Let $\alpha_{i}^2 = \V[W_{i}]$ denote the magnitude of the random weights at each layer.
+This section will aim to choose values for $\V[W_{i}]$ which achieve the desiderata as best possible.
+
+It is evident above that the magnitudes of the gradients $\V[\grad{W}_{i}]$ are approximately equal for all layers, assuming that the values of $m_{i-1}$, $m_{i}$ and $\V[W_{i}]$ do not vary too much.
+However, if we inspect the gradients for the biases
+\begin{equation}
+\V[\grad{b}_{i}] = \V[\grad{y}_{i}] =\tfrac{1}{2} m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}] = \left( \prod_{j = i+1}^{L} \tfrac{1}{2} m_{j} \V[W_{j}] \right) \V[\grad{y}_{L}]
+\end{equation}
+we can see that these may grow rapidly.
+To avoid this, we can simply choose $\V[W_{i}] = 2 / m_{i}$ for $i = 2, \dots, L$.
+(Note that there is no constraint on $\V[W_{1}]$.)
+
+In the PReLU paper, they suggest as a desiderata that the magnitude of the activations at different layers are kept constant.
+Examining the variance of the activations (defining $\V[y_{0}] = 2 \E[x_{0}^2]$ for convenience)
+\begin{align}
+\V[y_{i}] & = \tfrac{1}{2} m_{i - 1} \V[W_{i}] \V[y_{i - 1}^2] && i = 1, \dots, L
+\end{align}
+we see that this can be achieved by setting $\V[W_{i}] = 2 / m_{i-1}$ for $i = 1, \dots, L$.
+This solution satisfies another of our desiderata: it ensures that the variance of the output $\V[y_{L}]$ is in a reasonable range
+\begin{equation}
+\V[y_{L}] = 2 \left( \prod_{j = 1}^{L} \tfrac{1}{2} m_{j - 1} \V[W_{j}] \right) \E[x_{0}^2] = 2 \E[x_{0}^2]
+\end{equation}
+
+\section{Relative gradients}
+
+For the weights:
+\begin{align}
+\frac{\V[\grad{W}_{i}]}{\V[W_{i}]}
+& = \frac{\V[\grad{y}_{i}] \E[x_{i-1}^2]}{\V[W_{i}]} \\
+& = \frac{1}{\V[W_{i}]} \left( \tfrac{1}{2} m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}] \right) \left( \frac{\E[x_{i}^2]}{\tfrac{1}{2} m_{i - 1} \V[W_{i}]} \right) \\
+%& = \frac{m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}] \E[x_{i}^2]}{m_{i - 1} \V[W_{i}]^2} \\
+& = \frac{m_{i+1} \V[W_{i+1}]}{m_{i - 1} \V[W_{i}]^2} \V[\grad{y}_{i+1}] \E[x_{i}^2] \\
+& = \left(\frac{m_{i+1} \V[W_{i+1}]^2}{m_{i - 1} \V[W_{i}]^2}\right) \frac{\V[\grad{W}_{i+1}]}{\V[W_{i+1}]}
+%& = \left( \frac{\sqrt{m_{i+1}} \V[W_{i+1}]}{\sqrt{m_{i - 1}} \V[W_{i}]} \right)^2 \frac{\V[\grad{W}_{i+1}]}{\V[W_{i+1}]}
+\end{align}
+or, using the global constant $C$, simply:
+\begin{align}
+\frac{\V[\grad{W}_{i}]}{\V[W_{i}]} = \frac{C}{m_{i-1} m_{i} \V[W_{i}]^2}
+\end{align}
+For the activations:
+\begin{align}
+\frac{\V[\grad{y}_{i}]}{\V[y_{i}]}
+& = \frac{
+  \tfrac{1}{2} m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}]}{
+  \V[y_{i+1}] / \left( \tfrac{1}{2} m_{i} \V[W_{i+1}] \right)}
+%& = \frac{m_{i} m_{i+1} \V[W_{i+1}]^2}{2^2} \frac{\V[\grad{y}_{i+1}]}{\V[y_{i+1}]} \\
+= \left(\frac{\sqrt{m_{i} m_{i+1}}}{2} \V[W_{i+1}]\right)^2 \frac{\V[\grad{y}_{i+1}]}{\V[y_{i+1}]}
+\end{align}
+
+\section{Desiderata for parameter gradients}
+
+Alternatively, we might choose $\V[W_{i}]$ to effect equality between the magnitudes of the gradients $\V[\grad{W}_{i}]$.
+On examination of the variance
+\begin{equation}
+\V[\grad{W}_{i}] = \frac{C}{m_{i-1} m_{i} \V[W_{i}]}
+\end{equation}
+we see that this could be achieved by taking $\V[W_{i}] = 1 / (m_{i-1} m_{i})$.
+However, recall that we are more interested in the relative magnitude
+\begin{equation}
+\frac{\V[\grad{W}_{i}]}{\V[W_{i}]} = \frac{C}{m_{i-1} m_{i} \V[W_{i}]^2}
+\end{equation}
+In this case, we should set $\V[W_{i}] = 1 / \sqrt{m_{i-1} m_{i}}$ for $i = 1, \dots, L$.
+This is also an elegant middle ground between the measures outlined above.
+
+Note that there is an additional degree of freedom here: we are free to choose a global scale $\alpha^2$ such that $\V[W_{i}] = \alpha^2 / \sqrt{m_{i-1} m_{i}}$.
+This can alternatively be seen by deriving a relative constraint
+\begin{align}
+\frac{\V[\grad{W}_{i}]}{\V[W_{i}]} = \frac{C}{m_{i-1} m_{i} \V[W_{i}]^2}
+  & = \frac{C}{m_{i} m_{i+1} \V[W_{i+1}]^2} = \frac{\V[\grad{W}_{i+1}]}{\V[W_{i+1}]} \\
+%\frac{1}{m_{i-1} \V[W_{i}]^2} & = \frac{1}{m_{i+1} \V[W_{i+1}]^2} \\
+\V[W_{i+1}]^2 & = \frac{m_{i-1}}{m_{i+1}} \V[W_{i}]^2
+%\V[W_{i+1}] & = \frac{\sqrt{m_{i-1}}}{\sqrt{m_{i+1}}} \V[W_{i}]
+\end{align}
+which is satisfied by $\V[W_{i}] = \alpha^2 / \sqrt{m_{i-1} m_{i}}$.
+
+Now let's examine the ratio $\rho_{i} = \V[\grad{W}_{i}] / \V[W_{i}]$ for the case $\V[W_{i}] = \alpha^{2} / \sqrt{m_{i-1} m_{i}}$.
+\begin{align}
+\frac{\V[\grad{W}_{i}]}{\V[W_{i}]} = \frac{C}{(\alpha^2)^2}
+& = \frac{1}{(\alpha^2)^2} \frac{1}{2^{L-1}} \left(\prod_{j=0}^{L} m_{j} \right) \left(\prod_{j=1}^{L} \frac{\alpha^{2}}{\sqrt{m_{i-1} m_{i}}} \right) \E[x_{0}^2] \V[\grad{y}_{L}] \\
+& = \frac{(\alpha^2)^{L-2}}{2^{L-1}} m_{0} \left(\prod_{j=1}^{L} \frac{\sqrt{m_{j}}}{\sqrt{m_{j-1}}} \right) \E[x_{0}^2] \V[\grad{y}_{L}] \\
+%& = \frac{(\alpha^2)^{L-2}}{2^{L-1}} m_{0} \frac{\sqrt{m_{L}}}{\sqrt{m_{0}}} \E[x_{0}^2] \V[\grad{y}_{L}] \\
+& = \left(\frac{\alpha^2}{2}\right)^{L-1} \frac{\sqrt{m_{0} m_{L}}}{\alpha^2} \E[x_{0}^2] \V[\grad{y}_{L}]
+\end{align}
+What about the ratio $\V[\grad{b}_{i}] / \V[y_{i}] = \V[\grad{y}_{i}] / \V[y_{i}]$?
+\begin{align}
+\frac{\V[\grad{y}_{i}]}{\V[y_{i}]} & = \left.
+  \left[ \left( \prod_{j = i+1}^{L} \tfrac{1}{2} m_{j} \V[W_{j}] \right) \V[\grad{y}_{L}] \right] \middle/
+  \left[ 2 \left( \prod_{j = 1}^{i} \tfrac{1}{2} m_{j - 1} \V[W_{j}] \right) \E[x_{0}^2] \right] \right. \\
+& = \frac{1}{2} \frac{1}{2^{L - 2 i}} \frac{\V[\grad{y}_{L}]}{\E[x_{0}^2]} \left.
+  \left( \prod_{j = i+1}^{L} \alpha^2 \frac{\sqrt{m_{j}}}{\sqrt{m_{j-1}}} \right) \middle/
+  \left( \prod_{j = 1}^{i} \alpha^2 \frac{\sqrt{m_{j-1}}}{\sqrt{m_{j}}} \right) \right. \\
+& = \frac{1}{2} \left(\frac{\alpha^2}{2}\right)^{L - 2 i} \sqrt{\frac{m_{L}}{m_{0}}} \frac{\V[\grad{y}_{L}]}{\E[x_{0}^2]}
+\end{align}
+This depends on the depth $i$ with the variance changing by a factor of $(\alpha^2 / 2)^2$ per layer.
+This suggests that we can choose $\alpha^2 = 2$, or $\alpha_{i}^2 = 2 / \sqrt{m_{i-1} m_{i}}$.
+(This can also be seen more easily in the original equation for $\V[\grad{y}_{i}] / \V[y_{i}]$.)
+Then we have simply
+\begin{align}
+\frac{\V[\grad{W}_{i}]}{\V[W_{i}]} & = \frac{1}{2} \sqrt{m_{0} m_{L}} \E[x_{0}^2] \V[\grad{y}_{L}] \\
+\frac{\V[\grad{y}_{i}]}{\V[y_{i}]} & = \frac{1}{2} \frac{\sqrt{m_{L}}}{\sqrt{m_{0}}} \frac{\V[\grad{y}_{L}]}{\E[x_{0}^2]}
+\end{align}
+independent of the layer $i$.
+
+%Is there some way to choose $\V[W_{i}]$ to achieve constant $\V[\grad{y}_{i}] / \V[y_{i}]$?
+%\begin{align}
+%\frac{\V[\grad{y}_{i}]}{\V[y_{i}]} = \frac{\V[\grad{y}_{L}]}{2 \E[x_{0}^2]} \left.
+%  \left( \prod_{j = i+1}^{L} \tfrac{1}{2} m_{j} \V[W_{j}] \right) \middle/
+%  \left( \prod_{j = 1}^{i} \tfrac{1}{2} m_{j - 1} \V[W_{j}] \right) \right.
+%\end{align}
+%This is difficult because each equation depends on almost all $\V[W_{i}]$.
+%If we take the log of each equation, we obtain a system of $L$ equations and $L + 1$ variables including the ratio $r = \V[\grad{y}_{i}] / \V[y_{i}]$.
+%\begin{multline}
+%(L - 2 i + 1) \log 2 + \sum_{j = 1}^{i} \log m_{j-1} - \sum_{j = i+1}^{L} \log m_{j} \\
+%= -\log r - \sum_{j = 1}^{i} \log \V[W_{j}] + \sum_{j = i+1}^{L} \log \V[W_{j}]
+%\end{multline}
+%%What extra constraint can we use to choose $r$?
+%This is neat, but unfortunately it requires global knowledge of the network in order to obtain the initialization.
+%Furthermore, it does not preserve the relative magnitude of the other gradients $\V[\grad{W}_{i}] / \V[W_{i}]$.
+
+Finally, consider the \emph{ratio} of relative gradients for $\gradobj{W}_{i}$ to those for $\gradobj{y}_{i}$.
+\begin{align}
+\left. \frac{\V[\grad{W}_{i}]}{\V[W_{i}]} \middle/ \frac{\V[\grad{y}_{i}]}{\V[y_{i}]} \right.
+& = \left.
+  \left( \frac{1}{2} \sqrt{m_{0} m_{L}} \E[x_{0}^2] \V[\grad{y}_{L}] \right) \middle/
+  \left( \frac{1}{2} \frac{\sqrt{m_{L}}}{\sqrt{m_{0}}} \frac{\V[\grad{y}_{L}]}{\E[x_{0}^2]} \right) \right. \\
+& = m_{0} \E[x_{0}^2]^2
+\end{align}
+This shows that the dimension $m_{0}$ and variance $\E[x_{0}^2]$ affect the relative learning rate of the weights and biases.
+
+If the base learning rate is $\lambda$, we could adopt parameter-specific learning rates $\lambda_{W}$ and $\lambda_{b}$ that satisfy
+\begin{align}
+\lambda_{W}^2 & = \frac{2}{\sqrt{m_{0} m_{L}}} \lambda^2 \\
+\lambda_{b}^2 & = \frac{2 \sqrt{m_{0}}}{\sqrt{m_{L}}} \lambda^2
+\end{align}
+and hence $\lambda_{W} / \lambda_{b} = 1 / \sqrt{m_{0}}$ and the scaled gradients should be roughly equal
+\begin{align}
+\lambda_{W} \sqrt{\frac{\V[\grad{W}_{i}]}{\V[W_{i}]}} & = \lambda_{b} \sqrt{\frac{\V[\grad{b}_{i}]}{\V[y_{i}]}}
+\end{align}
+
+\section{}
+
+Let's briefly examine the general case with arbitrary $\V[W_{i}]$
+\begin{align}
+\frac{ \V[\grad{W}_{i}] / \V[W_{i}] }{ \V[\grad{y}_{i}] / \V[y_{i}] }
+& = \frac{
+  \left(\frac{\sqrt{m_{i+1}} \V[W_{i+1}]}{\sqrt{m_{i - 1}} \V[W_{i}]}\right)^2 \frac{\V[\grad{W}_{i+1}]}{\V[W_{i+1}]} }{
+  \left(\frac{\sqrt{m_{i} m_{i+1}}}{2} \V[W_{i+1}]\right)^2 \frac{\V[\grad{y}_{i+1}]}{\V[y_{i+1}]} } \\
+& = \left( \frac{\sqrt{m_{i+1}} \V[W_{i+1}]}{\sqrt{m_{i - 1}} \V[W_{i}]}
+  \frac{2}{\sqrt{m_{i} m_{i+1}} \V[W_{i+1}]} \right)^2
+  \frac{ \V[\grad{W}_{i+1}] / \V[W_{i+1}] }{ \V[\grad{y}_{i+1}] / \V[y_{i+1}] } \\
+& = \left( \frac{2}{\sqrt{m_{i} m_{i - 1}} \V[W_{i}]} \right)^2
+  \frac{ \V[\grad{W}_{i+1}] / \V[W_{i+1}] }{ \V[\grad{y}_{i+1}] / \V[y_{i+1}] }
+\end{align}
+Of course this quantity can be made constant for all $i$ using $\V[W_{i}] = 2 / \sqrt{m_{i} m_{i-1}}$.
+
+
+\section{Re-parameterization}
+
+Now let's consider an alternative network that introduces a constant scalar $a_{i}$ at each layer and re-parameterizes $\obj{W}_{i} = a_{i} \obj{U}_{i}$
+\begin{equation}
+\left\{ \begin{aligned}
+\obj{y}_{i} & = a_{i} \obj{U}_{i} \obj{x}_{i - 1} + \obj{b}_{i} && i = 1, \dots, L\\
+\obj{x}_{i} & = \sigma(\obj{y}_{i}) && i = 1, \dots, L - 1
+\end{aligned} \right.
+\end{equation}
+and the derivatives therefore become
+\begin{equation}
+\left\{ \begin{aligned}
+\gradobj{U}_{i} & = a_{i} \gradobj{y}_{i} \obj{x}_{i - 1}^T && i = L, \dots, 1 \\
+\gradobj{b}_{i} & = \gradobj{y}_{i} && i = L, \dots, 1 \\
+\gradobj{x}_{i} & = a_{i+1} \obj{U}_{i + 1}^T \gradobj{y}_{i + 1} = \obj{W}_{i + 1}^T \gradobj{y}_{i + 1} && i = L - 1, \dots, 1 \\
+\gradobj{y}_{i} & = \nabla\sigma(\obj{y}_{i}) \odot \gradobj{x}_{i} && i = L - 1, \dots, 1
+\end{aligned} \right.
+\end{equation}
+
+Now let us compare the relative magnitudes of the gradients:
+\begin{align}
+\gradobj{U}_{i} & = a_{i} \gradobj{W}_{i} \\
+\obj{U}_{i} & = \obj{W}_{i} / a_{i} \\
+\frac{\| \gradobj{U}_{i} \|}{\| \obj{U}_{i} \|} & = a_{i}^{2} \frac{\| \gradobj{W}_{i} \|}{\| \obj{W}_{i} \|}
+\end{align}
+(for any norm).
+Hence this re-parameterization can have an enormous effect on optimization.
+
+In fact, we can show this much more simply.
+Let $y = f(x)$.
+Now let $u = x / a$ for some constant $a$ and consider $y = f(a u)$.
+The derivative is $\partial y / \partial u = a \nabla f(a u) = a \nabla f(x)$ and hence
+\begin{equation}
+\frac{\partial y / \partial u}{u} = \frac{a \nabla f(x)}{x / a} = a^2 \frac{\partial y / \partial x}{x}
+\end{equation}
+Why not introduce such scalars in the network initialization to achieve the desired gradients?
+
+%Compared to the original network, we have $\V[W_{i}] = a_{i}^2 \V[U_{i}] = a_{i}^2 s_{i}^2$.
+Whereas for the original network, we have
+\begin{align}
+\V[y_{i}] & = m_{i - 1} \V[W_{i}] \E[x_{i - 1}^2] \\
+\E[x_{i}^2] & = \tfrac{1}{2} \V[y_{i}] \\
+\V[\grad{x}_{i}] & = m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}] \\
+\V[\grad{y}_{i}] & = \tfrac{1}{2} \V[\grad{x}_{i}] \\
+\V[\grad{W}_{i}] & = \V[\grad{y}_{i}] \E[x_{i - 1}^2]
+\end{align}
+with the re-parameterization $W_{i} = a_{i} U_{i}$, we instead have
+\begin{align}
+\V[y_{i}] & = m_{i-1} a_{i}^2 \V[U_{i}] \E[x_{i-1}^2] \\
+\E[x_{i}^2] & = \tfrac{1}{2} \V[y_{i}] \\
+\V[\grad{x}_{i}] & = m_{i+1} a_{i+1}^2 \V[U_{i+1}] \V[\grad{y}_{i+1}] \\
+\V[\grad{y}_{i}] & = \tfrac{1}{2} \V[\grad{x}_{i}] \\
+\V[\grad{U}_{i}] & = a_{i}^2 \V[\grad{y}_{i}] \E[x_{i-1}^2]
+\end{align}
+(with the assumption that $\obj{b}_{i} = 0$).
+The equations for $\V[y_{i}]$ and $\V[\grad{x}_{i}]$ incorporate the new variance $\V[W_{i}] = a_{i}^2 \V[U_{i}]$, and the equation for $\V[\grad{U}_{i}]$ also incorporates the scale factor $a_{i}$.
+
+The key difference is in the relative magnitude
+\begin{align}
+\frac{\V[\grad{U}_{i+1}]}{\V[\grad{U}_{i}]}
+= \frac {a_{i}^2 \V[\grad{y}_{i}] \E[x_{i-1}^2]} {\V[U_{i}]}
+= \frac {a_{i}^2 \V[\grad{y}_{i}] \E[x_{i-1}^2]} {(1/a_{i}^2) \V[W_{i}]}
+= a_{i}^4 \frac{\V[\grad{W}_{i}]}{\V[W_{i}]}
+\end{align}
+Therefore the parameters $a_{i}$ provide a mechanism to control the relative scale of gradients and weights.
+This might be more or less equivalent to a parameter-specific learning rate?
+
+
+\begin{subappendices}
+
+\section{Derivatives for simple network}
+\label{sec:simple_derivatives}
+\input{simple_derivatives}
+
+\section{Analysis of simple network}
+\label{sec:simple_analysis}
+\input{simple_analysis}
+
+\end{subappendices}
