@@ -121,7 +121,7 @@ To avoid this, we can simply choose $\V[W_{i}] = 2 / m_{i}$ for $i = 2, \dots, L
 In the PReLU paper, they suggest as a desiderata that the magnitude of the activations at different layers are kept constant.
 Examining the variance of the activations (defining $\V[y_{0}] = 2 \E[x_{0}^2]$ for convenience)
 \begin{align}
-\V[y_{i}] & = \tfrac{1}{2} m_{i - 1} \V[W_{i}] \V[y_{i - 1}^2] && i = 1, \dots, L
+\V[y_{i}] & = \tfrac{1}{2} m_{i - 1} \V[W_{i}] \V[y_{i - 1}] && i = 1, \dots, L
 \end{align}
 we see that this can be achieved by setting $\V[W_{i}] = 2 / m_{i-1}$ for $i = 1, \dots, L$.
 This solution satisfies another of our desiderata: it ensures that the variance of the output $\V[y_{L}]$ is in a reasonable range

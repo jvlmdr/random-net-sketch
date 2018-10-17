@@ -14,8 +14,8 @@ The gradients for the final layers are:
 \grad{u} & = \grad{y}_{L+1} w_{L+1} \\
 \grad{w}_{L+1} & = \grad{y}_{L+1} u \\
 \grad{b}_{L+1} & = \grad{y}_{L+1} \\
-\gradobj{y}_{L}^{\A} & = \grad{u} \obj{y}_{L}^{\B} \\
-\gradobj{y}_{L}^{\B} & = \grad{u} \obj{y}_{L}^{\A}
+\gradobj{y}_{L}^{\A} & = \grad{u} \obj{y}_{L}^{\B} = \grad{y}_{L+1} w_{L+1} \obj{y}_{L}^{\B} \\
+\gradobj{y}_{L}^{\B} & = \grad{u} \obj{y}_{L}^{\A} = \grad{y}_{L+1} w_{L+1} \obj{y}_{L}^{\A}
 \end{align}
 The gradients for layers $1, \dots, L$ will be largely the same, except that the gradients for the weights $\gradobj{W}_{i}$ will be accumulated from both branches:
 \begin{align}
@@ -25,9 +25,307 @@ The gradients for layers $1, \dots, L$ will be largely the same, except that the
 \gradobj{y}_{i}^{s} & = \nabla\sigma(\obj{y}_{i}^{s}) \odot \gradobj{x}_{i}^{s} && i = L - 1, \dots, 1
 \end{align}
 
-
 It can be seen that the gradients $\gradobj{y}_{L}^{s}$ are now scaled by $w_{L+1}$ and $\obj{y}_{L}^{t}$ where $t \ne s$.
 This is quite different to what we saw before, since the gradients of the activations $\gradobj{y}_{L}^{s}$ are scaled by the activations themselves $\obj{y}_{L}^{t}$.
+
+
+\section{Analysis}
+
+\subsection{Magnitude of output}
+
+Assume that $\obj{b}_{i} = 0$.
+As before:
+\begin{align}
+\E[y_{i}] & = 0 \\
+\V[y_{i}] & = m_{i - 1} \V[W_{i}] \E[x_{i - 1}^2] \\ % && i = 1, \dots, L \\
+\E[x_{i}^2] % & = \tfrac{1}{2} \V[y_{i}] \nonumber \\
+& = \tfrac{1}{2} m_{i - 1} \V[W_{i}] \E[x_{i - 1}^2] % && i = 1, \dots, L-1
+\end{align}
+
+The first thing to consider is the magnitude of the output $y_{L+1}$.
+\begin{align}
+u & = \langle \obj{y}_{L}^{\A}, \obj{y}_{L}^{\B} \rangle
+= \sum_{k = 1}^{m_{L}} (\obj{y}_{L}^{\A})_{k} (\obj{y}_{L}^{\B})_{k} \\
+\E[u] & = m_{L} \E[y_{L}^{\A} \cdot y_{L}^{\B}] \\
+& = m_{L} \E[y_{L}^{\A}] \E[y_{L}^{\B}] \\
+& = m_{L} \E[y_{L}]^2 \\
+& = 0 \\
+\V[u] & = m_{L} \V[y_{L}^{\A} \cdot y_{L}^{\B}] \\
+& = m_{L} \left( \E[(y_{L}^{\A})^2] \E[(y_{L}^{\B})^2] - \E[y_{L}^{\A}]^2 \E[y_{L}^{\B}]^2 \right) \\
+& = m_{L} \V[y_{L}]^2
+\end{align}
+This is wrong!
+We cannot assume that these are independent, since they both depend on $\obj{W}_{L}$ at least.
+This is confirmed experimentally: $u$ is always positive.
+\begin{align}
+u & = \langle \obj{y}_{L}^{\A}, \obj{y}_{L}^{\B} \rangle \\
+& = \langle \obj{W}_{L} \obj{x}_{L - 1}^{\A}, \obj{W}_{L} \obj{x}_{L - 1}^{\B} \rangle \\
+& = (\obj{x}_{L - 1}^{\A})^{T} \obj{W}_{L}^{T} \obj{W}_{L} \obj{x}_{L - 1}^{\B} \\
+& = \sum_{p, q} A_{p q}  (\obj{x}_{L - 1}^{\A})_{p} (\obj{x}_{L - 1}^{\B})_{q}
+\end{align}
+The question then is whether we can assume $\obj{x}_{L - 1}^{\A}$ and $\obj{x}_{L - 1}^{\B}$ to be independent?
+The fact that $u$ is always positive suggests maybe not?
+This would occur if they were roughly equal (since $A$ is positive semidefinite).
+
+In a toy experiment, as the depth increases, $\E[y_{i}^{\A} y_{i}^{\B}]$ approaches $\V[y_{i}^{\A}] = \E[(y_{i}^{\A})^2]$ (using $\V[W_{i}] = 2 / m_{i}$).
+It is somewhat strange that this occurs with two completely random inputs.
+It seems to suggest that the network has essentially forgotten about the input.
+It wouldn't occur if the two branches had their own weights.
+In any case, once the network has been trained somewhat, there should be training examples with similar embeddings at the final layer.
+Therefore, we instead consider
+\begin{align}
+\E[u]
+& = m_{L} \E[y_{L}^{\A} \cdot y_{L}^{\B}] \\
+& \approx m_{L} \E[y_{L}^2] \\
+& = m_{L} \V[y_{L}] \\
+\V[u]
+& = m_{L} \V[y_{L}^{\A} \cdot y_{L}^{\B}] \\
+& \approx m_{L} \V[y_{L}^2] \\
+& \approx 2 m_{L} \V[y_{L}]^2 \\
+\E[u^2] & = \V[u] + \E[u]^2 \approx 3 m_{L} \V[y_{L}]^2
+\end{align}
+where we have assumed that $y_{L}$ is approximately Gaussian and therefore has kurtosis $\E[y_{L}^4] \approx 3 \V[y_L]^2$ and therefore $\V[y_{L}^2] \approx 2 \V[y_L]^2$.
+Note that this correction has a much bigger effect on the mean (which becomes non-zero) than the variance (which roughly doubles).
+Let's consider $w_{L+1}$ and $b_{L+1}$ to be simple scalars rather than random variables.
+\begin{align}
+\E[y_{L+1}]
+& = \E[w_{L+1} u] + \E[b_{L+1}] \\
+& = w_{L+1} \E[u] + b_{L+1} \\
+& = m_{L} w_{L+1} \V[y_{L}] + b_{L+1} = 0 \\
+\V[y_{L+1}]
+& = \V[w_{L+1} u] + b_{L+1} \\
+& = w_{L+1}^2 \V[u] \\
+& \approx 2 m_{L} w_{L+1}^2 \V[y_{L}]^2
+\end{align}
+This result is concerning because the variance is the square of the previous variance.
+Perhaps we should try to achieve $\V[y_{L}] \approx 1$ to limit the effect.
+
+Note that, to achieve $\E[y_{L+1}] = 0$, we choose $b_{L+1} = -m_{L} w_{L+1} \V[y_{L}]$.
+
+\subsection{Magnitude of gradients}
+
+As before:
+\begin{align}
+\V[\grad{x}_{i}] & = m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}] \\
+\V[\grad{y}_{i}] & = \tfrac{1}{2} m_{i+1} \V[W_{i+1}] \V[\grad{y}_{i+1}]
+\end{align}
+For the parameters in the branches, we must accumulate gradients from both
+\begin{align}
+\V[\grad{W}_{i}] & = 2 \V[\grad{y}_{i}] \E[x_{i-1}^2] \\
+\V[\grad{b}_{i}] & = 2 \V[\grad{y}_{i}]
+\end{align}
+
+Let's inspect the gradients of the output subnet, assuming that $\E[\grad{y}_{L+1}] = 0$
+\begin{align}
+%\grad{u} & = \grad{y}_{L+1} w_{L+1} \\
+\E[\grad{u}]
+& = \E[\grad{y}_{L+1} w_{L+1}] \\
+& = w_{L+1} \E[\grad{y}_{L+1}] = 0 \\
+\E[\grad{y}_{L}] & = \E[\grad{u} y_{L}] \\
+& = \E[\grad{u}] \E[y_{L}] = 0
+\end{align}
+\begin{align}
+\V[\grad{u}]
+& = \V[\grad{y}_{L+1} w_{L+1}] \\
+& = w_{L+1}^2 \V[\grad{y}_{L+1}] \\
+%& = \E[\grad{y}_{L+1}^2] \E[w_{L+1}^2] - \E[\grad{y}_{L+1}]^2 \E[w_{L+1}]^2 \\
+%& = \V[\grad{y}_{L+1}] \E[w_{L+1}^2] \\
+\V[\grad{y}_{L}]
+& = \V[\grad{u} y_{L}] \\
+& = \E[\grad{u}^2] \E[y_{L}^2] - \E[\grad{u}]^2 \E[y_{L}]^2 \\
+& = \V[\grad{u}] \V[y_{L}] \\
+& = w_{L+1}^2 \V[y_{L}] \V[\grad{y}_{L+1}]
+\end{align}
+\begin{align}
+\E[\grad{b}_{L+1}] & = \E[\grad{y}_{L+1}] = 0 \\
+\V[\grad{b}_{L+1}] & = \V[\grad{y}_{L+1}] = 0 \\
+\E[\grad{w}_{L+1}]
+& = \E[\grad{y}_{L+1} u] \\
+& = \E[\grad{y}_{L+1}] \E[u] = 0 \\
+\V[\grad{w}_{L+1}]
+& = \V[\grad{y}_{L+1} u] \\
+& = \E[\grad{y}_{L+1}^2] \E[u^2] - \E[\grad{y}_{L+1}]^2 \E[u]^2 \\
+& = \V[\grad{y}_{L+1}] \E[u^2] \\
+& = 3 m_{L} \V[y_{L}]^2 \V[\grad{y}_{L+1}]
+\end{align}
+The term $\V[y_{L}]^2$ has also appeared in the magnitude of the gradients.
+
+%\begin{align}
+%\V[\grad{y}_{L}]
+%& = \V[\grad{y}_{L+1}] \E[w_{L+1}^2] \V[y_{L}] \\
+%& = \V[\grad{y}_{L+1}] \E[w_{L+1}^2] \cdot m_{i - 1} \V[W_{i}] \E[x_{i - 1}^2] \\
+%\end{align}
+
+%Compare this to the other weights' gradients
+%\begin{align}
+%\V[\grad{W}_{i}] & = 2 \V[\grad{y}_{i}] \E[x_{i - 1}^2] && i = 1, \dots, L
+%\end{align}
+%Whereas the former is a product of three variances, the latter is a product of two variances (or variance-like values).
+%Assuming that the magnitude of these variances are similar, we should aim to keep $\V[y_{L}] \approx 1$, or else the magnitude of the grad $\V[\grad{w}_{L+1}]$ may be significantly different to other magnitudes.
+
+%How can we influence $\V[y_{L}]$?
+%\begin{align}
+%\V[y_{L}] & = 2 \left(\prod_{j = 1}^{i} \tfrac{1}{2} m_{j - 1} \V[W_{j}]\right) \E[x_{0}^2] \\
+%\intertext{assume $\E[x_{0}^2] = 1$}
+%\V[y_{L}] & = 2 \left(\prod_{j = 1}^{L} \tfrac{1}{2} m_{j - 1} \alpha_{j}^2\right) \\
+%\intertext{and if we adopt $\alpha_{j}^2 = 2/m_{j}$ for $j \ge 2$}
+%\V[y_{L}] & = m_{0} \alpha_{1}^2 \left(\prod_{j = 2}^{L} \frac{m_{j-1}}{m_{j}} \right)
+%  = \frac{m_{0} m_{1} \alpha_{1}^2}{m_{L}}
+%\end{align}
+%Therefore we can choose
+%\begin{equation}
+%\alpha_{1}^2 = \frac{m_{L}}{m_{0} m_{1}}
+%\end{equation}
+%to achieve $\V[y_{L}] = 1$.
+%If we assume that all $m_{i}$ are roughly equal, we could use $\alpha_{i}^2 = 1 / \sqrt{m_{0} m_{1}}$.
+%\begin{align}
+%\V[\grad{w}_{L+1}] = m_{L} \V[\grad{y}_{L+1}] \V[y_{L}]^{2}
+%\end{align}
+%
+%We still observe a big difference between $\V[\grad{w}_{L+1}]$ and $\V[\grad{W}_{i}]$.
+%Note that also the magnitude of $\grad{w}_{L+1} \approx 1$ is 
+%
+%We also need the initial output to be of the desired magnitude.
+%How can we control the magnitude of the 
+
+
+\subsection{Equal-magnitude activations}
+
+Recall that it was possible to achieve $\V[y_{i}] = \V[y_{i-1}]$ and therefore $\V[y_{L}] = 2 \E[x_{0}^2]$. % by choosing $\V[W_{i}] = 2 / m_{i}$ for all $i$.
+We therefore consider the criterion $\V[y_{L+1}] = \V[y_{L}]$.
+To achieve this:
+\begin{align}
+\V[y_{L+1}] = 2 m_{L} w_{L+1}^2 \V[y_{L}]^2 & = \V[y_{L}] \\
+2 m_{L} w_{L+1}^2 \V[y_{L}] & = 1 \\
+w_{L+1}^2 & = \frac{1}{2 m_{L} \V[y_{L}]}
+\end{align}
+
+%Recall that choosing $\V[W_{i}] = 2 / m_{i}$ for all $i$ was sufficient to ensure that $\V[y_{i}] = \V[y_{i-1}]$ and therefore $\V[y_{L}] = 2 \E[x_{0}^2]$.
+%%(It might be possible to eliminate this factor of $2$ using a factor of $2^{\frac{1}{L}}$ at each layer.)
+%%Let us entertain this scenario, and further assume that $\E[x_{0}^2]$.
+
+%Recall that expanding the recursions for $\V[\grad{y}_{i}]$ and $\E[x_{i-1}^2]$ gives
+%\begin{align}
+%\V[\grad{W}_{i}] = \frac{C}{m_{i-1} m_{i} \V[W_{i}]}
+%\end{align}
+%where
+%\begin{equation}
+%C = \frac{1}{2^{L-1}} \left(\prod_{j=0}^{L} m_{j} \right) \left(\prod_{j=1}^{L} \V[W_{j}] \right)
+%  \E[x_{0}^2] \V[\grad{y}_{L}]
+%\end{equation}
+%If we similarly substitute in the expression for $\V[y_{L}]$:
+%\begin{align}
+%\V[\grad{w}_{L+1}]
+%& = m_{L} \V[\grad{y}_{L+1}] \V[y_{L}]^{2} \\
+%& = m_{L} \V[\grad{y}_{L+1}] \left\{
+%  2 \left( \prod_{j = 1}^{i} \tfrac{1}{2} m_{j - 1} \V[W_{j}] \right) \E[x_{0}^2] \right\}^2 \\
+%& = 2^2 m_{L} \V[\grad{y}_{L+1}] \left( \prod_{j = 1}^{i} \tfrac{1}{2^2} m_{j - 1} \V[W_{j}]^2 \right) \E[x_{0}^2]^2 \\
+%\end{align}
+%This does not look promising.
+
+We now consider a particular configuration.
+Set $\V[W_{i}] = 2 / m_{i}$ for $i = 1, \dots L$ and further assume that $\E[x_{0}^{2}] = 1$ to simplify the expressions.
+This provides $\V[y_{L}] = 2 \E[x_{0}^2] = 2$.
+Then, to achieve $\V[y_{L+1}] = \V[y_{L}] = 2$, we should choose
+\begin{align}
+w_{L+1}^2 & = \frac{1}{2 m_{L} \V[y_{L}]} = \frac{1}{4 m_{L}} \\
+b_{L+1} & = -m_{L} w_{L+1} \V[y_{L}] = -2 m_{L} \frac{1}{2 \sqrt{m_{L}}} = -\sqrt{m_{L}}
+\end{align}
+This implies that $\V[W_{i}] = 1 / m_{i} \approx 1 / (4 m_{L}) = w_{L+1}^2$ are approximately equal (within an order of magnitude).
+
+However, experimentally, the variance of $y_{L+1}$ is significantly larger.
+It tends to vary in the range $[-20, 20]$.
+This may still be acceptable for cross-entropy.
+The figure below shows that mean of the distribution of outputs seems to depend somehow on the dimensions.
+Note that our analysis should hold independent of the dimension of the network.
+
+(This experiment used $L = 5$, $\V[W_{i}] = 2 / m_{i}$, $b_{i} = 0$, $w_{L+1}^2 = 1 / (4 m_{L})$ and $b_{L+1} = -\sqrt{m_{L}}$.)
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=28mm]{code/siamese_hist_L_5_size_1}
+\includegraphics[width=28mm]{code/siamese_hist_L_5_size_2}
+\includegraphics[width=28mm]{code/siamese_hist_L_5_size_3}
+\includegraphics[width=28mm]{code/siamese_hist_L_5_size_4}
+\caption{
+  The output distribution of $y_{L}$.
+  Each subplot considers different random dimensions $\obj{m} = m_{0}, \dots, m_{L}$.
+  Each color denotes a different parameter vector $\obj{\theta} = (\obj{W}, \obj{b})$.
+  For each parameter vector, a distribution of outputs is obtained with a batch of random inputs.
+  Clearly the dimension $\obj{m}$ has an effect on the expected value.
+}
+\end{figure}
+
+This error may be because $y_{L}$ is not exactly Gaussian (and this difference is more obvious in the fourth moments) or because $y_{L}^2$ is a poor approximation for $y_{L}^{\A} \cdot y_{L}^{\B}$.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=60mm]{code/siamese_hist_L_5}
+\includegraphics[width=60mm]{code/siamese_hist_L_5_ravel}
+\caption{
+  The output distribution of $y_{L}$.
+  Left: Each color shows the distribution of outputs obtained with random inputs for a fixed netweork.
+  Right: The cumulative distribution for a random network.
+}
+\end{figure}
+
+The variance does change but not too much (we expect a difference of about $\sqrt{3}$ from the theory).
+Could we fix the bias by computing the sample mean and initializing an extra parameter?
+This sounds similar to batch-norm, except the mean would only be used as initialization.
+
+Important remark: The analysis is greatly complicated by the fact that the activations from the two branches are not independent.
+We lose the zero-mean assumption for the network output.
+Maybe we should focus on the use of batch-norm?
+
+We would not have this problem if we used the difference between two embeddings!
+
+TODO: From here onwards may be invalidated due to incorrect assumption that $\obj{y}_{L}^{\A}$ and $\obj{y}_{L}^{\B}$ are independent.
+
+Now let's consider the effect of the choice of $\V[W_{i}]$, $w_{L+1}^2$ and $b_{L+1}$ on the gradients.
+\begin{align}
+\V[\grad{W}_{i}]
+& = \frac{2 C}{m_{i-1} m_{i} \V[W_{i}]} \\
+C & = \frac{1}{2^{L-1}} \left(\prod_{j=0}^{L} m_{j} \right) \left(\prod_{j=1}^{L} \frac{2}{m_{j}} \right)
+  \E[x_{0}^2] \V[\grad{y}_{L}] \\
+& = 2 m_{0} \V[\grad{y}_{L}] \\
+\V[\grad{W}_{i}]
+%& = \frac{2 C}{m_{i-1} m_{i} \V[W_{i}]} \\
+& = \frac{2 \cdot 2 m_{0}}{m_{i-1} m_{i} (2 / m_{i})} \V[\grad{y}_{L}] \\
+& = \frac{2 m_{0}}{m_{i-1}} \V[\grad{y}_{L}] \\
+& = \frac{m_{0}}{m_{i-1}} \E[w_{L+1}^2] \V[y_{L}] \V[\grad{y}_{L+1}] \\
+%& = \frac{m_{0}}{m_{i-1}} \frac{1}{2 m_{L}} (2^2) \V[\grad{y}_{L+1}] \\
+& = \frac{2 m_{0}}{m_{i-1} m_{L}} \V[\grad{y}_{L+1}] \\
+\V[\grad{w}_{L+1}]
+& = m_{L} \V[y_{L}]^{2} \V[\grad{y}_{L+1}] \\
+& = 2^2 m_{L} \V[\grad{y}_{L+1}]
+\end{align}
+This shows that $\V[\grad{W}_{i}] \propto 1/m_{L}$, whereas $\V[\grad{w}_{L+1}] \propto m_{L}$, where $m_{L}$ is the dimension of the embedding.
+This is a relative difference of $m_{L}^2$ between the variances ($m_{L}$ between the root-variances).
+Recall that the magnitudes of the parameters are similar.
+
+The $1/m_{L}$ term in $\V[\grad{w}_{L+1}]$ arose due to the need to choose $\E[w_{L+1}^2] \propto m_{L}^{-1}$ in order to obtain a suitable output magnitude $\V[y_{L+1}] \approx 1$.
+
+%And the gradients for the bias terms?
+%\begin{align}
+%\V[\grad{b}_{i}] & =  \\
+%\V[\grad{b}_{L+1}] & = 
+%\end{align}
+
+One solution may simply be to adopt different learning rates.
+For example, if we choose $\lambda_{w_{L+1}} = (1 / m_{L}) \lambda$.
+
+Would different choices of $\V[W_{i}]$ be better?
+Perhaps we can introduce a global scale parameter $\alpha^2$ that effects $\V[y_{L+1}] \approx 1$ without $\E[w_{L+1}^2] \propto m_{L}^{-1}$?
+
+Maybe we could alternatively achieve $\V[y_{L+1}] \approx 1$ by multiplying the inner product by a constant?
+Is this equivalent to a re-parameterization of $w_{L+1}$ and therefore simply adjusting the learning rate?
+
+Or maybe we can achieve $\V[y_{L+1}] \approx 1$ by introducing batch-norm before or after the inner product?
+
+
+\clearpage
+
+\subsection{Magnitude of gradients}
 
 Let's inspect the gradients of the output subnet (assuming that $\E[\grad{y}_{L+1}] = 0$ and $\E[y_{L}] = 0$)
 \begin{align}
