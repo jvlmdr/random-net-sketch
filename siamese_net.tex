@@ -43,64 +43,49 @@ As before:
 \end{align}
 
 The first thing to consider is the magnitude of the output $y_{L+1}$.
+It is not clear whether we can assume that $\obj{y}_{L}^{\A}$ and $\obj{y}_{L}^{\B}$ are independent in
+\begin{equation}
+u = \langle \obj{y}_{L}^{\A}, \obj{y}_{L}^{\B} \rangle
+= \sum_{k = 1}^{m_{L}} (\obj{y}_{L}^{\A})_{k} (\obj{y}_{L}^{\B})_{k}
+\end{equation}
+Let's consider two cases: one which assumes that they are independent:
 \begin{align}
-u & = \langle \obj{y}_{L}^{\A}, \obj{y}_{L}^{\B} \rangle
-= \sum_{k = 1}^{m_{L}} (\obj{y}_{L}^{\A})_{k} (\obj{y}_{L}^{\B})_{k} \\
-\E[u] & = m_{L} \E[y_{L}^{\A} \cdot y_{L}^{\B}] \\
+\E_{\bot}[u] & = m_{L} \E_{\bot}[y_{L}^{\A} \cdot y_{L}^{\B}] \\
 & = m_{L} \E[y_{L}^{\A}] \E[y_{L}^{\B}] \\
-& = m_{L} \E[y_{L}]^2 \\
+& = m_{L} \E[y_{L}]^2 \qquad \text{since $\E[y_{L}] = 0$} \\
 & = 0 \\
-\V[u] & = m_{L} \V[y_{L}^{\A} \cdot y_{L}^{\B}] \\
-& = m_{L} \left( \E[(y_{L}^{\A})^2] \E[(y_{L}^{\B})^2] - \E[y_{L}^{\A}]^2 \E[y_{L}^{\B}]^2 \right) \\
-& = m_{L} \V[y_{L}]^2
-\end{align}
-This is wrong!
-We cannot assume that these are independent, since they both depend on $\obj{W}_{L}$ at least.
-This is confirmed experimentally: $u$ is always positive.
-\begin{align}
-u & = \langle \obj{y}_{L}^{\A}, \obj{y}_{L}^{\B} \rangle \\
-& = \langle \obj{W}_{L} \obj{x}_{L - 1}^{\A}, \obj{W}_{L} \obj{x}_{L - 1}^{\B} \rangle \\
-& = (\obj{x}_{L - 1}^{\A})^{T} \obj{W}_{L}^{T} \obj{W}_{L} \obj{x}_{L - 1}^{\B} \\
-& = \sum_{p, q} A_{p q}  (\obj{x}_{L - 1}^{\A})_{p} (\obj{x}_{L - 1}^{\B})_{q}
-\end{align}
-The question then is whether we can assume $\obj{x}_{L - 1}^{\A}$ and $\obj{x}_{L - 1}^{\B}$ to be independent?
-The fact that $u$ is always positive suggests maybe not?
-This would occur if they were roughly equal (since $A$ is positive semidefinite).
-
-In a toy experiment, as the depth increases, $\E[y_{i}^{\A} y_{i}^{\B}]$ approaches $\V[y_{i}^{\A}] = \E[(y_{i}^{\A})^2]$ (using $\V[W_{i}] = 2 / m_{i}$).
-It is somewhat strange that this occurs with two completely random inputs.
-It seems to suggest that the network has essentially forgotten about the input.
-It wouldn't occur if the two branches had their own weights.
-In any case, once the network has been trained somewhat, there should be training examples with similar embeddings at the final layer.
-Therefore, we instead consider
-\begin{align}
-\E[u]
-& = m_{L} \E[y_{L}^{\A} \cdot y_{L}^{\B}] \\
-& \approx m_{L} \E[y_{L}^2] \\
+\V_{\bot}[u] & = m_{L} \V_{\bot}[y_{L}^{\A} \cdot y_{L}^{\B}] \\
+& = m_{L} \left( \E[y_{L}^2] \E[y_{L}^2] - \E[y_{L}]^2 \E[y_{L}]^2 \right) \\
+& = m_{L} \V[y_{L}]^2 \qquad \text{since $\E[y_{L}] = 0$} \\
+\intertext{and one which assumes they are equal:}
+\E_{\parallel}[u]
+& = m_{L} \E_{\parallel}[y_{L}^{\A} \cdot y_{L}^{\B}] \approx m_{L} \E[y_{L}^2] \\
 & = m_{L} \V[y_{L}] \\
-\V[u]
-& = m_{L} \V[y_{L}^{\A} \cdot y_{L}^{\B}] \\
-& \approx m_{L} \V[y_{L}^2] \\
-& \approx 2 m_{L} \V[y_{L}]^2 \\
-\E[u^2] & = \V[u] + \E[u]^2 \approx 3 m_{L} \V[y_{L}]^2
+\V_{\parallel}[u]
+& = m_{L} \V_{\parallel}[y_{L}^{\A} \cdot y_{L}^{\B}] \approx m_{L} \V[y_{L}^2] \\
+& \approx 2 m_{L} \V[y_{L}]^2
+%\E_{\parallel}[u^2] & \approx 3 m_{L} \V[y_{L}]^2
 \end{align}
-where we have assumed that $y_{L}$ is approximately Gaussian and therefore has kurtosis $\E[y_{L}^4] \approx 3 \V[y_L]^2$ and therefore $\V[y_{L}^2] \approx 2 \V[y_L]^2$.
-Note that this correction has a much bigger effect on the mean (which becomes non-zero) than the variance (which roughly doubles).
-Let's consider $w_{L+1}$ and $b_{L+1}$ to be simple scalars rather than random variables.
+where we have assumed that $y_{L}$ is approximately Gaussian and therefore has kurtosis $\E[y_{L}^4] \approx 3 \V[y_L]^2$ and $\V[y_{L}^2] \approx 2 \V[y_L]^2$.
+Note that the assumption made has a much bigger effect on the mean (which becomes non-zero) than the variance (which roughly doubles).
+
+The result above is concerning because the variance of the inner product is the square of the variance of the embedding.
+Perhaps we should try to achieve $\V[y_{L}] \approx 1$ to limit the effect.
+
+Finally, let's examine the output.
+Consider $w_{L+1}$ and $b_{L+1}$ to be simple scalars rather than random variables.
 \begin{align}
 \E[y_{L+1}]
 & = \E[w_{L+1} u] + \E[b_{L+1}] \\
 & = w_{L+1} \E[u] + b_{L+1} \\
-& = m_{L} w_{L+1} \V[y_{L}] + b_{L+1} = 0 \\
+%& = m_{L} w_{L+1} \V[y_{L}] + b_{L+1} = 0 \\
 \V[y_{L+1}]
 & = \V[w_{L+1} u] + b_{L+1} \\
-& = w_{L+1}^2 \V[u] \\
-& \approx 2 m_{L} w_{L+1}^2 \V[y_{L}]^2
+& = w_{L+1}^2 \V[u]
+%& \approx 2 m_{L} w_{L+1}^2 \V[y_{L}]^2
 \end{align}
-This result is concerning because the variance is the square of the previous variance.
-Perhaps we should try to achieve $\V[y_{L}] \approx 1$ to limit the effect.
 
-Note that, to achieve $\E[y_{L+1}] = 0$, we choose $b_{L+1} = -m_{L} w_{L+1} \V[y_{L}]$.
+%Note that, to achieve $\E[y_{L+1}] = 0$, we choose $b_{L+1} = -m_{L} w_{L+1} \V[y_{L}]$.
 
 \subsection{Magnitude of gradients}
 
@@ -141,12 +126,12 @@ Let's inspect the gradients of the output subnet, assuming that $\E[\grad{y}_{L+
 \V[\grad{b}_{L+1}] & = \V[\grad{y}_{L+1}] = 0 \\
 \E[\grad{w}_{L+1}]
 & = \E[\grad{y}_{L+1} u] \\
-& = \E[\grad{y}_{L+1}] \E[u] = 0 \\
+& = \E[\grad{y}_{L+1}] \E[u] = 0 \qquad \text{since $\E[\grad{y}_{L+1}] = 0$} \\
 \V[\grad{w}_{L+1}]
 & = \V[\grad{y}_{L+1} u] \\
 & = \E[\grad{y}_{L+1}^2] \E[u^2] - \E[\grad{y}_{L+1}]^2 \E[u]^2 \\
-& = \V[\grad{y}_{L+1}] \E[u^2] \\
-& = 3 m_{L} \V[y_{L}]^2 \V[\grad{y}_{L+1}]
+& = \V[\grad{y}_{L+1}] \E[u^2] \qquad \text{since $\E[\grad{y}_{L+1}] = 0$}
+%& = 3 m_{L} \V[y_{L}]^2 \V[\grad{y}_{L+1}]
 \end{align}
 The term $\V[y_{L}]^2$ has also appeared in the magnitude of the gradients.
 
@@ -191,14 +176,28 @@ The term $\V[y_{L}]^2$ has also appeared in the magnitude of the gradients.
 
 \subsection{Equal-magnitude activations}
 
-Recall that it was possible to achieve $\V[y_{i}] = \V[y_{i-1}]$ and therefore $\V[y_{L}] = 2 \E[x_{0}^2]$. % by choosing $\V[W_{i}] = 2 / m_{i}$ for all $i$.
-We therefore consider the criterion $\V[y_{L+1}] = \V[y_{L}]$.
-To achieve this:
+Recall that it was possible to achieve $\V[y_{i}] = \V[y_{i-1}]$ and therefore $\V[y_{L}] = 2 \E[x_{0}^2]$ by choosing $\V[W_{i}] = 2 / m_{i}$ for all $i$.
+For the rest of this section, we consider the specific case $\V[W_{i}] = 2 / m_{i-1}$ for $i = 1, \dots L$ and further assume that $\E[x_{0}^{2}] = 1$ to simplify the expressions.
+This provides $\V[y_{L}] = 2 \E[x_{0}^2] = 2$.
+
+How should we choose $w_{L+1}^2$ and $b_{L+1}$ to achieve $\E[y_{L+1}] = 0$ and $\V[y_{L+1}] = \V[y_{L}]$?
+If we adopt the assumption that $\obj{y}_{\A}$ and $\obj{y}_{\B}$ are independent, then we obtain:
 \begin{align}
-\V[y_{L+1}] = 2 m_{L} w_{L+1}^2 \V[y_{L}]^2 & = \V[y_{L}] \\
-2 m_{L} w_{L+1}^2 \V[y_{L}] & = 1 \\
-w_{L+1}^2 & = \frac{1}{2 m_{L} \V[y_{L}]}
+0 = \E[y_{L+1}] & = w_{L+1} \E_{\bot}[u] + b_{L+1} = b_{L+1} \\
+b_{L+1} & = 0 \\
+\V[y_{L}] = \V[y_{L+1}] & = w_{L+1}^2 \V_{\bot}[u] = m_{L} w_{L+1}^2 \V[y_{L}]^2 \\
+1 & = m_{L} w_{L+1}^2 \V[y_{L}] \\
+w_{L+1}^2 & = 1 / (m_{L} \V[y_{L}]) = 1 / (2 m_{L})
 \end{align}
+If we instead assume that $\obj{y}_{\A} = \obj{y}_{\B}$, then we obtain:
+\begin{align}
+0 = \E[y_{L+1}] & = w_{L+1} \E_{\parallel}[u] + b_{L+1} =  + b_{L+1} \\
+b_{L+1} & = -m_{L} w_{L+1} \V[y_{L}] = -2 m_{L} w_{L+1} \\
+\V[y_{L}] = \V[y_{L+1}] & = w_{L+1}^2 \V_{\parallel}[u] = 2 m_{L} w_{L+1}^2 \V[y_{L}]^2 \\
+1 & = 2 m_{L} w_{L+1}^2 \V[y_{L}] \\
+w_{L+1}^2 & = 1 / (2 m_{L} \V[y_{L}]) = 1 / (4 m_{L})
+\end{align}
+Happily, in either case this implies that $\V[W_{i}]$ and $w_{L+1}^2$ are approximately equal (within an order of magnitude).
 
 %Recall that choosing $\V[W_{i}] = 2 / m_{i}$ for all $i$ was sufficient to ensure that $\V[y_{i}] = \V[y_{i-1}]$ and therefore $\V[y_{L}] = 2 \E[x_{0}^2]$.
 %%(It might be possible to eliminate this factor of $2$ using a factor of $2^{\frac{1}{L}}$ at each layer.)
@@ -223,53 +222,27 @@ w_{L+1}^2 & = \frac{1}{2 m_{L} \V[y_{L}]}
 %\end{align}
 %This does not look promising.
 
-We now consider a particular configuration.
-Set $\V[W_{i}] = 2 / m_{i}$ for $i = 1, \dots L$ and further assume that $\E[x_{0}^{2}] = 1$ to simplify the expressions.
-This provides $\V[y_{L}] = 2 \E[x_{0}^2] = 2$.
-Then, to achieve $\V[y_{L+1}] = \V[y_{L}] = 2$, we should choose
-\begin{align}
-w_{L+1}^2 & = \frac{1}{2 m_{L} \V[y_{L}]} = \frac{1}{4 m_{L}} \\
-b_{L+1} & = -m_{L} w_{L+1} \V[y_{L}] = -2 m_{L} \frac{1}{2 \sqrt{m_{L}}} = -\sqrt{m_{L}}
-\end{align}
-This implies that $\V[W_{i}] = 1 / m_{i} \approx 1 / (4 m_{L}) = w_{L+1}^2$ are approximately equal (within an order of magnitude).
+%Then, to achieve $\V[y_{L+1}] = \V[y_{L}] = 2$, we should choose
+%\begin{align}
+%w_{L+1}^2 & = \frac{1}{2 m_{L} \V[y_{L}]} = \frac{1}{4 m_{L}} \\
+%%b_{L+1} & = -m_{L} w_{L+1} \V[y_{L}] = -m_{L} \cdot \frac{1}{2 \sqrt{m_{L}}} \cdot 2 = -\sqrt{m_{L}}
+%b_{L+1} & = -m_{L} w_{L+1} \V[y_{L}] = -2 m_{L} w_{L+1}
+%\end{align}
+%This implies that $\V[W_{i}] = 1 / m_{i} \approx 1 / (4 m_{L}) = w_{L+1}^2$ are approximately equal (within an order of magnitude).
 
-However, experimentally, the variance of $y_{L+1}$ is significantly larger.
-It tends to vary in the range $[-20, 20]$.
-This may still be acceptable for cross-entropy.
-The figure below shows that mean of the distribution of outputs seems to depend somehow on the dimensions.
-Note that our analysis should hold independent of the dimension of the network.
-
-(This experiment used $L = 5$, $\V[W_{i}] = 2 / m_{i}$, $b_{i} = 0$, $w_{L+1}^2 = 1 / (4 m_{L})$ and $b_{L+1} = -\sqrt{m_{L}}$.)
+The figure below shows the outcome of assuming the weights are independent or equal.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=28mm]{code/siamese_hist_L_5_size_1}
-\includegraphics[width=28mm]{code/siamese_hist_L_5_size_2}
-\includegraphics[width=28mm]{code/siamese_hist_L_5_size_3}
-\includegraphics[width=28mm]{code/siamese_hist_L_5_size_4}
+\includegraphics[width=36mm]{figures/siamese_hist_independent}
+\includegraphics[width=36mm]{figures/siamese_hist_equal}
+\includegraphics[width=36mm]{figures/siamese_hist_compromise}
 \caption{
   The output distribution of $y_{L}$.
-  Each subplot considers different random dimensions $\obj{m} = m_{0}, \dots, m_{L}$.
-  Each color denotes a different parameter vector $\obj{\theta} = (\obj{W}, \obj{b})$.
-  For each parameter vector, a distribution of outputs is obtained with a batch of random inputs.
-  Clearly the dimension $\obj{m}$ has an effect on the expected value.
+  Each color shows the distribution of outputs obtained with random inputs for a fixed network.
 }
 \end{figure}
 
-This error may be because $y_{L}$ is not exactly Gaussian (and this difference is more obvious in the fourth moments) or because $y_{L}^2$ is a poor approximation for $y_{L}^{\A} \cdot y_{L}^{\B}$.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=60mm]{code/siamese_hist_L_5}
-\includegraphics[width=60mm]{code/siamese_hist_L_5_ravel}
-\caption{
-  The output distribution of $y_{L}$.
-  Left: Each color shows the distribution of outputs obtained with random inputs for a fixed netweork.
-  Right: The cumulative distribution for a random network.
-}
-\end{figure}
-
-The variance does change but not too much (we expect a difference of about $\sqrt{3}$ from the theory).
 Could we fix the bias by computing the sample mean and initializing an extra parameter?
 This sounds similar to batch-norm, except the mean would only be used as initialization.
 
