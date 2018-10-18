@@ -6,13 +6,14 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 BRANCHES = ['A', 'B']
+METHODS = ['independent', 'equal', 'compromise', 'mean']
 
 cmap = plt.get_cmap('plasma')
 
 def main():
     L = 5
 
-    for method in ['independent', 'equal', 'compromise']:
+    for method in METHODS:
         for size_ind in range(4):
             # Fix the dimension and sample several parameter vectors.
             # For each parameter vector, evaluate a batch of random inputs.
@@ -23,10 +24,10 @@ def main():
             for param_ind in range(5):
                 y_out = evaluate(m, B=200, output_method=method)
                 plt.hist(y_out, alpha=0.5)
-            plt.xlim((-30, 50))
+            # plt.xlim((-30, 50))
             plt.savefig('siamese_hist_{}_size_{}.pdf'.format(method, size_ind + 1))
 
-    for method in ['independent', 'equal', 'compromise']:
+    for method in METHODS:
         plt.clf()
         y_out = []
         for param_ind in range(100):
@@ -58,6 +59,12 @@ def evaluate(m, B=32, output_method='independent'):
     elif output_method == 'compromise':
         w_out = 1 / np.sqrt(np.sqrt(8) * m[L])
         b_out = -m[L] * w_out
+    elif output_method == 'mean':
+        w_out = 1 / m[L]
+        b_out = 0
+    elif output_method == 'raw':
+        w_out = 1
+        b_out = 0
 
     x = {s: {0: np.random.randn(B, m[0])} for s in BRANCHES}
     # x0 = np.random.randn(B, m[0])

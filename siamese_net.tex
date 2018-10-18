@@ -184,20 +184,42 @@ How should we choose $w_{L+1}^2$ and $b_{L+1}$ to achieve $\E[y_{L+1}] = 0$ and 
 If we adopt the assumption that $\obj{y}_{\A}$ and $\obj{y}_{\B}$ are independent, then we obtain:
 \begin{align}
 0 = \E[y_{L+1}] & = w_{L+1} \E_{\bot}[u] + b_{L+1} = b_{L+1} \\
-b_{L+1} & = 0 \\
+b_{L+1} & = 0
+\end{align}
+\begin{align}
 \V[y_{L}] = \V[y_{L+1}] & = w_{L+1}^2 \V_{\bot}[u] = m_{L} w_{L+1}^2 \V[y_{L}]^2 \\
 1 & = m_{L} w_{L+1}^2 \V[y_{L}] \\
 w_{L+1}^2 & = 1 / (m_{L} \V[y_{L}]) = 1 / (2 m_{L})
 \end{align}
 If we instead assume that $\obj{y}_{\A} = \obj{y}_{\B}$, then we obtain:
 \begin{align}
-0 = \E[y_{L+1}] & = w_{L+1} \E_{\parallel}[u] + b_{L+1} =  + b_{L+1} \\
-b_{L+1} & = -m_{L} w_{L+1} \V[y_{L}] = -2 m_{L} w_{L+1} \\
+0 = \E[y_{L+1}] & = w_{L+1} \E_{\parallel}[u] + b_{L+1} = m_{L} w_{L+1} \V[y_{L}] + b_{L+1} \\
+b_{L+1} & = -m_{L} w_{L+1} \V[y_{L}] = -2 m_{L} w_{L+1}
+\end{align}
+\begin{align}
 \V[y_{L}] = \V[y_{L+1}] & = w_{L+1}^2 \V_{\parallel}[u] = 2 m_{L} w_{L+1}^2 \V[y_{L}]^2 \\
 1 & = 2 m_{L} w_{L+1}^2 \V[y_{L}] \\
 w_{L+1}^2 & = 1 / (2 m_{L} \V[y_{L}]) = 1 / (4 m_{L})
 \end{align}
 Happily, in either case this implies that $\V[W_{i}]$ and $w_{L+1}^2$ are approximately equal (within an order of magnitude).
+
+We might instead choose $w_{L} = 1 / m_{L}$ (that is, $w_{L}^2 = 1 / m_{L}^2$) to remove the dependence of $\E[y_{L}]$ on $m_{L}$.
+Unfortunately this makes $w_{L}^2$ different to $\V[W_{i}]$ by a factor of $m$ (at least $w_{L}$ and $\operatorname{std}[W_{i}]$ only differ by a factor of $\sqrt{m}$).
+Under the assumption that the two branches are equal, this leads to
+\begin{align}
+\E[y_{L+1}] & = m_{L} w_{L+1} \V[y_{L}] + b_{L+1} \\
+& = 2 - b_{L+1}
+\end{align}
+\begin{align}
+\V[y_{L+1}] & = 2 m_{L} w_{L+1}^2 \V[y_{L}]^2 \\
+& = 4 m_{L} (1 / m_{L}^2) \\
+& = 4 / m_{L}
+\end{align}
+Note that this only implies $\std[y_{L+1}] \propto 1 / \sqrt{m_{L}}$.
+% As a middle ground, we might consider $w_{L} = m_{L}^{-3/4}$.
+
+Is this different from multiplying the dot product by a constant $1 / m_{L}$ in terms of gradients?
+What about pre-multiplying both branches by $1 / \sqrt{m_L}$?
 
 %Recall that choosing $\V[W_{i}] = 2 / m_{i}$ for all $i$ was sufficient to ensure that $\V[y_{i}] = \V[y_{i-1}]$ and therefore $\V[y_{L}] = 2 \E[x_{0}^2]$.
 %%(It might be possible to eliminate this factor of $2$ using a factor of $2^{\frac{1}{L}}$ at each layer.)
@@ -234,9 +256,14 @@ The figure below shows the outcome of assuming the weights are independent or eq
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=36mm]{figures/siamese_hist_independent}
-\includegraphics[width=36mm]{figures/siamese_hist_equal}
-\includegraphics[width=36mm]{figures/siamese_hist_compromise}
+\begin{tabular}{c @{} c @{} c}
+\includegraphics[width=40mm]{figures/siamese_hist_independent} &
+\includegraphics[width=40mm]{figures/siamese_hist_equal} &
+\includegraphics[width=40mm]{figures/siamese_hist_compromise} \\
+(a) assume independent &
+(b) assume equal &
+(c) compromise \\
+\end{tabular}
 \caption{
   The output distribution of $y_{L}$.
   Each color shows the distribution of outputs obtained with random inputs for a fixed network.
